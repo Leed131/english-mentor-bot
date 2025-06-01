@@ -1,50 +1,66 @@
-import os
 import discord
 from discord.ext import commands
+import os
 import nest_asyncio
-nest_asyncio.apply()
 
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts import PromptTemplate
 from langchain.chains import ConversationChain
 
-# Настройка Discord intents
+# Обработка асинхронности
+nest_asyncio.apply()
+
+# Настройки интентов
 intents = discord.Intents.default()
 intents.message_content = True
-intents.messages = True
-
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Получение ключей из переменных окружения
-openai_api_key = os.environ["OPENAI_API_KEY"]
-discord_token = os.environ["DISCORD_TOKEN"]
+# Получение токенов из Render secrets
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
-# Шаблон общения
+# Шаблон для исправлений и ответа
 template = """
-You are an English mentor. Always reply in English, clearly and helpfully.
+You are an English tutor bot. The user is practicing English. 
+If the user's message has grammatical or vocabulary mistakes, correct them and explain briefly.
+Then answer the message in proper English as a conversation.
+
+Correction example:
+User: "I can to go" 
+Bot: "You should say 'I can go'. 'to' is not needed here."
+
+---
+
 Chat history:
 {history}
+
 User: {input}
 EnglishMentorBot:"""
 
 # Настройка LangChain
 prompt = PromptTemplate(input_variables=["history", "input"], template=template)
 memory = ConversationBufferMemory()
-llm = ChatOpenAI(openai_api_key=openai_api_key, temperature=0.6)
-
+llm = ChatOpenAI(temperature=0.6, openai_api_key=openai_api_key)
 conversation = ConversationChain(llm=llm, memory=memory, prompt=prompt)
 
-# Команда приветствия
+# Команда-приветствие
 @bot.command()
 async def hello(ctx):
     await ctx.send("Hi! I'm your English mentor bot 🤖. You can talk to me!")
 
-# Основная команда общения
-@bot.command()
-async def ask(ctx, *, message: str):
-    response = conversation.run(message)
-    await ctx.send(response)
+# Основной диалог — обычные сообщения
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
 
-# Запуск бота
-bot.run(discord_token)
+    if message.content.startswith("!"):  # обрабатываем команды отдельно
+        await bot.process_commands(message)
+        return
+
+    response = conversation.run(message.content)
+    await message.channel.send(response)
+
+# Запуск
+TOKEN = os.getenv("DISCORD_TOKEN")
+bot.run(TOKEN)

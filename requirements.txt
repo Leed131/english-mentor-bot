@@ -4,3 +4,6 @@ langchain-community
 langchain-openai
 openai
 nest_asyncio
+pytesseract
+Pillow
+requests

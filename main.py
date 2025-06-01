@@ -1,69 +1,42 @@
+import os
 import discord
 from discord.ext import commands
-import os
-import random
+from langchain_community.chat_models import ChatOpenAI
+from langchain.chains import ConversationChain
+from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
 
+# --- API keys ---
+openai_api_key = os.getenv("OPENAI_API_KEY")
+discord_token = os.getenv("DISCORD_TOKEN")
+
+# --- LangChain setup ---
+llm = ChatOpenAI(openai_api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0.7)
+
+template = """You are EnglishBot, a helpful and patient English mentor.
+
+{history}
+User: {input}
+EnglishBot:"""
+
+prompt = PromptTemplate(input_variables=["history", "input"], template=template)
+memory = ConversationBufferMemory()
+conversation = ConversationChain(llm=llm, memory=memory, prompt=prompt)
+
+# --- Discord bot setup ---
 intents = discord.Intents.default()
 intents.message_content = True
-intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# 🧠 Небольшой словарь для примера
-vocab = {
-    "apple": "яблоко",
-    "house": "дом",
-    "book": "книга",
-    "tree": "дерево",
-    "sun": "солнце"
-}
-
-# 📝 Сохраняем текущие слова для каждого пользователя
-user_quiz = {}
-
 @bot.event
 async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
+    print(f"🤖 Logged in as {bot.user}")
 
 @bot.command()
-async def hello(ctx):
-    await ctx.send("👋 Hello! I'm your English mentor bot. Type !help to see what I can do.")
+async def talk(ctx, *, message):
+    response = conversation.run(message)
+    await ctx.send(response)
 
-@bot.command()
-async def vocab(ctx):
-    word, translation = random.choice(list(vocab.items()))
-    await ctx.send(f"📘 Word: **{word}**\n📝 Translation: **{translation}**")
-
-@bot.command()
-async def quiz(ctx):
-    word = random.choice(list(vocab.keys()))
-    user_quiz[ctx.author.id] = word
-    await ctx.send(f"🔍 Translate this word to Russian: **{word}**")
-
-@bot.command()
-async def answer(ctx, *, user_answer):
-    word = user_quiz.get(ctx.author.id)
-    if not word:
-        await ctx.send("⚠️ You haven't started a quiz. Type !quiz first.")
-        return
-    correct = vocab[word].lower()
-    if user_answer.lower().strip() == correct:
-        await ctx.send("✅ Correct!")
-    else:
-        await ctx.send(f"❌ Incorrect. The correct answer is: **{correct}**")
-    user_quiz[ctx.author.id] = None
-
-@bot.command()
-async def help(ctx):
-    await ctx.send("""
-🧠 English Mentor Bot Commands:
-- !hello — say hello
-- !vocab — get a word and its translation
-- !quiz — get a word to translate
-- !answer [your answer] — answer the quiz
-- !help — show this message
-""")
-
-# 🔑 Запуск бота
-TOKEN = os.getenv("DISCORD_TOKEN")
-bot.run(TOKEN)
+# --- Start bot ---
+bot.run(discord_token)

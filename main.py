@@ -1,42 +1,36 @@
-import os
 import discord
-from discord.ext import commands
-from langchain_community.chat_models import ChatOpenAI
+import os
+from langchain_openai import ChatOpenAI
 from langchain.chains import ConversationChain
 from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
 
-# --- API keys ---
-openai_api_key = os.getenv("OPENAI_API_KEY")
-discord_token = os.getenv("DISCORD_TOKEN")
-
-# --- LangChain setup ---
-llm = ChatOpenAI(openai_api_key=openai_api_key, model_name="gpt-3.5-turbo", temperature=0.7)
-
-template = """You are EnglishBot, a helpful and patient English mentor.
-
-{history}
-User: {input}
-EnglishBot:"""
-
-prompt = PromptTemplate(input_variables=["history", "input"], template=template)
-memory = ConversationBufferMemory()
-conversation = ConversationChain(llm=llm, memory=memory, prompt=prompt)
-
-# --- Discord bot setup ---
 intents = discord.Intents.default()
+intents.messages = True
 intents.message_content = True
 
-bot = commands.Bot(command_prefix="!", intents=intents)
+client = discord.Client(intents=intents)
 
-@bot.event
+# Получаем ключи из переменных окружения Render
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
+
+# Настройка LangChain
+llm = ChatOpenAI(temperature=0.7, openai_api_key=OPENAI_API_KEY)
+memory = ConversationBufferMemory()
+conversation = ConversationChain(llm=llm, memory=memory)
+
+@client.event
 async def on_ready():
-    print(f"🤖 Logged in as {bot.user}")
+    print(f'Logged in as {client.user}')
 
-@bot.command()
-async def talk(ctx, *, message):
-    response = conversation.run(message)
-    await ctx.send(response)
+@client.event
+async def on_message(message):
+    if message.author == client.user:
+        return
 
-# --- Start bot ---
-bot.run(discord_token)
+    if client.user in message.mentions:
+        user_message = message.content.replace(f"<@{client.user.id}>", "").strip()
+        reply = conversation.run(user_message)
+        await message.channel.send(reply)
+
+client.run(DISCORD_BOT_TOKEN)

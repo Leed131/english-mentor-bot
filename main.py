@@ -1,36 +1,50 @@
-import discord
 import os
-from langchain_openai import ChatOpenAI
-from langchain.chains import ConversationChain
+import discord
+from discord.ext import commands
+import nest_asyncio
+nest_asyncio.apply()
+
+from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
+from langchain.prompts import PromptTemplate
+from langchain.chains import ConversationChain
 
+# Настройка Discord intents
 intents = discord.Intents.default()
-intents.messages = True
 intents.message_content = True
+intents.messages = True
 
-client = discord.Client(intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Получаем ключи из переменных окружения Render
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
-DISCORD_BOT_TOKEN = os.environ.get("DISCORD_BOT_TOKEN")
+# Получение ключей из переменных окружения
+openai_api_key = os.environ["OPENAI_API_KEY"]
+discord_token = os.environ["DISCORD_TOKEN"]
+
+# Шаблон общения
+template = """
+You are an English mentor. Always reply in English, clearly and helpfully.
+Chat history:
+{history}
+User: {input}
+EnglishMentorBot:"""
 
 # Настройка LangChain
-llm = ChatOpenAI(temperature=0.7, openai_api_key=OPENAI_API_KEY)
+prompt = PromptTemplate(input_variables=["history", "input"], template=template)
 memory = ConversationBufferMemory()
-conversation = ConversationChain(llm=llm, memory=memory)
+llm = ChatOpenAI(openai_api_key=openai_api_key, temperature=0.6)
 
-@client.event
-async def on_ready():
-    print(f'Logged in as {client.user}')
+conversation = ConversationChain(llm=llm, memory=memory, prompt=prompt)
 
-@client.event
-async def on_message(message):
-    if message.author == client.user:
-        return
+# Команда приветствия
+@bot.command()
+async def hello(ctx):
+    await ctx.send("Hi! I'm your English mentor bot 🤖. You can talk to me!")
 
-    if client.user in message.mentions:
-        user_message = message.content.replace(f"<@{client.user.id}>", "").strip()
-        reply = conversation.run(user_message)
-        await message.channel.send(reply)
+# Основная команда общения
+@bot.command()
+async def ask(ctx, *, message: str):
+    response = conversation.run(message)
+    await ctx.send(response)
 
-client.run(DISCORD_BOT_TOKEN)
+# Запуск бота
+bot.run(discord_token)

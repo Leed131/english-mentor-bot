@@ -18,7 +18,7 @@ async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
 # Image-to-text function using GPT-4o
-async def recognize_text_from_image(url):
+def recognize_text_from_image(url):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
@@ -44,7 +44,7 @@ async def on_message(message):
             if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
                 await message.channel.send("🔍 Scanning your image...")
                 try:
-                    result = await recognize_text_from_image(attachment.url)
+                    result = recognize_text_from_image(attachment.url)
                     await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
                 except Exception as e:
                     await message.channel.send(f"⚠️ Error reading image: {e}")

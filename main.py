@@ -1,40 +1,31 @@
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+import os
+import discord
+import aiohttp
+from discord.ext import commands
+from openai import OpenAI
 
-# Discord bot setup
+# Настройка OpenAI и Discord
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+TOKEN = os.getenv("DISCORD_TOKEN")
+
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# LangChain setup (memory-enabled chatbot)
-template = """You are an English learning assistant. Have a conversation.
-{history}
-Human: {input}
-EnglishMentorBot:"""
-
-prompt = PromptTemplate(input_variables=["history", "input"], template=template)
-memory = ConversationBufferMemory()
-conversation = ConversationChain(
-    llm=ChatOpenAI(model_name="gpt-4o", temperature=0.6),
-    memory=memory,
-    prompt=prompt
-)
-
-# Log when ready
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
-# GPT-4o Vision: read text from image
+# Распознавание текста с изображений
 async def recognize_text_from_image(url):
     response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4-vision-preview",  # если выдаёт ошибку, замените на gpt-4o
         messages=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": "Extract all readable text from this image."}
+                    { "type": "image_url", "image_url": { "url": url } },
+                    { "type": "text", "text": "Please extract all readable text from this image." }
                 ]
             }
         ],
@@ -42,10 +33,26 @@ async def recognize_text_from_image(url):
     )
     return response.choices[0].message.content.strip()
 
-# Handle image messages
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Image 
+    # Ответ на обычный текст
+    if message.content.startswith("!hello"):
+        await message.channel.send("👋 Hello! Send me an image or message!")
+
+    # Обработка изображения
+    if message.attachments:
+        for attachment in message.attachments:
+            if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+                await message.channel.send("🔍 Scanning your image...")
+                try:
+                    result = await recognize_text_from_image(attachment.url)
+                    await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
+                except Exception as e:
+                    await message.channel.send(f"⚠️ Error: {e}")
+
+    await bot.process_commands(message)
+
+bot.run(TOKEN)

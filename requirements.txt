@@ -1,5 +1,5 @@
 discord.py
 aiohttp
-openai==1.3.7
+openai>=1.0.0
 langchain
 langchain-community

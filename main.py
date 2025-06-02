@@ -1,10 +1,13 @@
-import openai
-import aiohttp
+import os
 import discord
 from discord.ext import commands
+import openai
+import aiohttp
+import base64
 
-# Настройка клиента OpenAI
+# Ключи
 openai.api_key = os.getenv("OPENAI_API_KEY")
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 # Настройка бота
 intents = discord.Intents.default()
@@ -16,11 +19,6 @@ async def on_ready():
     print(f"Logged in as {bot.user}")
 
 async def recognize_text_from_image(url):
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url) as resp:
-            image_bytes = await resp.read()
-
-    base64_image = base64.b64encode(image_bytes).decode("utf-8")
     response = openai.ChatCompletion.create(
         model="gpt-4-vision-preview",
         messages=[
@@ -28,7 +26,7 @@ async def recognize_text_from_image(url):
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": "Read the text from this image and return it as plain text."}
+                    {"type": "text", "text": "Please extract all readable text from this image and return it."}
                 ]
             }
         ],
@@ -44,18 +42,13 @@ async def on_message(message):
     if message.attachments:
         for attachment in message.attachments:
             if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                await message.channel.send("🔍 Scanning the image...")
+                await message.channel.send("🔍 Scanning your image...")
                 try:
-                    text = await recognize_text_from_image(attachment.url)
-                    if text:
-                        await message.channel.send(f"📖 I found this:\n```{text[:1000]}```")
-                    else:
-                        await message.channel.send("😕 I couldn't recognize any text.")
+                    result = await recognize_text_from_image(attachment.url)
+                    await message.channel.send(f"📖 I found this:\n{result[:1900]}")
                 except Exception as e:
-                    await message.channel.send(f"❌ Error reading image: {e}")
-    
+                    await message.channel.send(f"⚠️ Error reading image: {e}")
+
     await bot.process_commands(message)
 
-# Запуск
-TOKEN = os.getenv("DISCORD_TOKEN")
 bot.run(TOKEN)

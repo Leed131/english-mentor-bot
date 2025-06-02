@@ -18,14 +18,14 @@ async def on_ready():
     print(f"✅ Bot is online as {bot.user}")
 
 async def recognize_text_from_image(url):
-    response = client.chat.completions.create(
+    response = openai.ChatCompletion.create(
         model="gpt-4o",
         messages=[
             {
                 "role": "user",
                 "content": [
-                    { "type": "image_url", "image_url": { "url": url } },
-                    { "type": "text", "text": "Please extract all text from this image." }
+                    {"type": "image_url", "image_url": {"url": url}},
+                    {"type": "text", "text": "Please read and extract all visible text from this image and return it as plain text."}
                 ]
             }
         ],

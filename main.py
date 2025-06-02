@@ -1,22 +1,23 @@
 import os
 import discord
 from discord.ext import commands
-import openai
+from openai import OpenAI
 import aiohttp
 
-# Инициализация клиента OpenAI
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Set up keys
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Настройка Discord-бота
+# Bot config
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot is online as {bot.user}")
+    print(f"✅ Logged in as {bot.user}")
 
+# Image-to-text function using GPT-4o
 async def recognize_text_from_image(url):
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -46,7 +47,7 @@ async def on_message(message):
                     result = await recognize_text_from_image(attachment.url)
                     await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
                 except Exception as e:
-                    await message.channel.send(f"⚠️ Error reading image: `{str(e)}`")
+                    await message.channel.send(f"⚠️ Error reading image: {e}")
 
     await bot.process_commands(message)
 

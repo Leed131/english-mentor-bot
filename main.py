@@ -4,11 +4,11 @@ from discord.ext import commands
 import openai
 import aiohttp
 
-# Load API keys from environment
-openai.api_key = os.getenv("OPENAI_API_KEY")
+# Инициализация клиента OpenAI
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Setup Discord bot
+# Настройка Discord-бота
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -17,9 +17,8 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Bot is online as {bot.user}")
 
-# Image-to-text using GPT-4o
 async def recognize_text_from_image(url):
-    response = openai.ChatCompletion.create(
+    response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
             {
@@ -39,7 +38,6 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Handle image uploads
     if message.attachments:
         for attachment in message.attachments:
             if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
@@ -50,8 +48,6 @@ async def on_message(message):
                 except Exception as e:
                     await message.channel.send(f"⚠️ Error reading image: `{str(e)}`")
 
-    # Allow other commands to process
     await bot.process_commands(message)
 
-# Run the bot
 bot.run(TOKEN)

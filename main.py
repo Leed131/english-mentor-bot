@@ -1,14 +1,3 @@
-import os
-import discord
-from discord.ext import commands
-from openai import OpenAI
-import aiohttp
-from langchain_community.chat_models import ChatOpenAI
-from langchain.chains import ConversationChain
-from langchain.memory import ConversationBufferMemory
-from langchain.prompts import PromptTemplate
-
-# Load keys
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
@@ -59,39 +48,4 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Image detection
-    if message.attachments:
-        for attachment in message.attachments:
-            if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
-                await message.channel.send("🔍 Scanning your image...")
-                try:
-                    result = await recognize_text_from_image(attachment.url)
-                    await message.channel.send(f"📖 I found this:\n{result[:1900]}")
-                except Exception as e:
-                    await message.channel.send(f"⚠️ Error reading image: {e}")
-
-    await bot.process_commands(message)
-
-# Command: !talk <message>
-@bot.command()
-async def talk(ctx, *, message):
-    try:
-        response = conversation.run(message)
-        await ctx.send(response[:1900])
-    except Exception as e:
-        await ctx.send(f"⚠️ Error: {e}")
-
-# Command: !fix <sentence>
-@bot.command()
-async def fix(ctx, *, sentence):
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": f"Correct this sentence: {sentence}"}]
-        )
-        await ctx.send(response.choices[0].message.content.strip())
-    except Exception as e:
-        await ctx.send(f"⚠️ Error: {e}")
-
-# Start the bot
-bot.run(DISCORD_TOKEN)
+    # Image 

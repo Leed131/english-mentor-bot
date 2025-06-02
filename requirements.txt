@@ -7,3 +7,4 @@ nest_asyncio
 pytesseract
 Pillow
 requests
+openai==0.28

@@ -5,28 +5,36 @@ import openai
 import aiohttp
 import base64
 
-# Ключи
+# ⬛️ Настройка ключей
 openai.api_key = os.getenv("OPENAI_API_KEY")
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Настройка бота
+# ⬛️ Настройка бота
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# ⬛️ Стартовое сообщение
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    print(f"✅ Logged in as {bot.user}")
 
+# ⬛️ Распознавание текста на изображении
 async def recognize_text_from_image(url):
-    response = openai.ChatCompletion.create(
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            image_bytes = await resp.read()
+
+    base64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+    response = openai.chat.completions.create(
         model="gpt-4-vision-preview",
         messages=[
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": "Please extract all readable text from this image and return it."}
+                    { "type": "image_url", "image_url": { "url": url } },
+                    { "type": "text", "text": "Please extract all readable text from this image and return it." }
                 ]
             }
         ],
@@ -34,11 +42,24 @@ async def recognize_text_from_image(url):
     )
     return response.choices[0].message.content.strip()
 
+# ⬛️ Обработка сообщений и изображений
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
+    # Ответ на текст
+    if message.content and not message.content.startswith("!"):
+        reply = openai.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You're a friendly English mentor. Answer clearly and helpfully."},
+                {"role": "user", "content": message.content}
+            ]
+        )
+        await message.channel.send(reply.choices[0].message.content.strip())
+
+    # Ответ на изображение
     if message.attachments:
         for attachment in message.attachments:
             if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):

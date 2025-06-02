@@ -4,11 +4,11 @@ from discord.ext import commands
 import openai
 import aiohttp
 
-# Настройка OpenAI клиента
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-# Настройка Discord бота
+# Load API keys from environment
+openai.api_key = os.getenv("OPENAI_API_KEY")
 TOKEN = os.getenv("DISCORD_TOKEN")
+
+# Setup Discord bot
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -17,6 +17,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Bot is online as {bot.user}")
 
+# Image-to-text using GPT-4o
 async def recognize_text_from_image(url):
     response = openai.ChatCompletion.create(
         model="gpt-4o",
@@ -25,7 +26,7 @@ async def recognize_text_from_image(url):
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": "Please read and extract all visible text from this image and return it as plain text."}
+                    {"type": "text", "text": "Please extract all readable text from this image and return it."}
                 ]
             }
         ],
@@ -38,16 +39,19 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
+    # Handle image uploads
     if message.attachments:
         for attachment in message.attachments:
             if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
                 await message.channel.send("🔍 Scanning your image...")
                 try:
                     result = await recognize_text_from_image(attachment.url)
-                    await message.channel.send(f"📖 Extracted text:\n```{result[:1900]}```")
+                    await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
                 except Exception as e:
-                    await message.channel.send(f"⚠️ Error: {e}")
+                    await message.channel.send(f"⚠️ Error reading image: `{str(e)}`")
 
+    # Allow other commands to process
     await bot.process_commands(message)
 
+# Run the bot
 bot.run(TOKEN)

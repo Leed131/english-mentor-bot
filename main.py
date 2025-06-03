@@ -3,7 +3,6 @@ import discord
 from discord.ext import commands
 from openai import OpenAI
 import aiohttp
-from gtts import gTTS
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -16,6 +15,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
+# 🖼️ Обработка изображения
 async def recognize_text_from_image(url):
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -32,17 +32,21 @@ async def recognize_text_from_image(url):
     )
     return response.choices[0].message.content.strip()
 
-async def transcribe_audio(file_path):
-    with open(file_path, "rb") as audio_file:
+# 🎧 Распознавание аудио (только mp3/wav)
+async def transcribe_audio_from_url(url):
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as resp:
+            audio_data = await resp.read()
+
+    with open("temp_audio.mp3", "wb") as f:
+        f.write(audio_data)
+
+    with open("temp_audio.mp3", "rb") as f:
         transcript = client.audio.transcriptions.create(
             model="whisper-1",
-            file=audio_file
+            file=f
         )
     return transcript.text
-
-def text_to_speech(text, filename):
-    tts = gTTS(text)
-    tts.save(filename)
 
 @bot.event
 async def on_message(message):
@@ -52,40 +56,41 @@ async def on_message(message):
     # Обработка изображений
     if message.attachments:
         for attachment in message.attachments:
-            if attachment.filename.lower().endswith((".png", ".jpg", ".jpeg")):
+            filename = attachment.filename.lower()
+            url = attachment.url
+
+            # 📷 Обработка изображения
+            if filename.endswith((".png", ".jpg", ".jpeg")):
                 await message.channel.send("🔍 Scanning your image...")
                 try:
-                    result = await recognize_text_from_image(attachment.url)
+                    result = await recognize_text_from_image(url)
                     await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
-                    text_to_speech(result, "response.mp3")
-                    await message.channel.send(file=discord.File("response.mp3"))
                 except Exception as e:
                     await message.channel.send(f"⚠️ Error reading image: {e}")
-            elif attachment.filename.lower().endswith((".mp3", ".wav", ".m4a")):
+
+            # 🎧 Обработка аудио
+            elif filename.endswith((".mp3", ".wav")):
                 await message.channel.send("🎧 Transcribing audio...")
                 try:
-                    async with aiohttp.ClientSession() as session:
-                        async with session.get(attachment.url) as resp:
-                            if resp.status == 200:
-                                with open("temp_audio.mp3", "wb") as f:
-                                    f.write(await resp.read())
-                    transcript = await transcribe_audio("temp_audio.mp3")
-                    await message.channel.send(f"📝 Transcription:\n{transcript}")
-                    text_to_speech(transcript, "response.mp3")
-                    await message.channel.send(file=discord.File("response.mp3"))
+                    transcription = await transcribe_audio_from_url(url)
+                    await message.channel.send(f"📝 Transcription:\n{transcription}")
                 except Exception as e:
-                    await message.channel.send(f"⚠️ Error transcribing audio: {e}")
+                    await message.channel.send(f"⚠️ Audio error: {e}")
+            else:
+                await message.channel.send("⚠️ Unsupported file format. Use .jpg, .png, .mp3 or .wav.")
 
-    # Ответ на текст
+    # Ответ на обычный текст
     if message.content:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": message.content}]
-        )
-        reply = response.choices[0].message.content.strip()
-        await message.channel.send(reply)
-        text_to_speech(reply, "response.mp3")
-        await message.channel.send(file=discord.File("response.mp3"))
+        try:
+            completion = client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {"role": "user", "content": message.content}
+                ]
+            )
+            await message.channel.send(completion.choices[0].message.content.strip())
+        except Exception as e:
+            await message.channel.send(f"⚠️ Text error: {e}")
 
     await bot.process_commands(message)
 

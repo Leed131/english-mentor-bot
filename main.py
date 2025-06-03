@@ -85,7 +85,16 @@ async def on_message(message):
                 await message.channel.send("🎙️ Transcribing audio...")
                 try:
                     transcript = await transcribe_audio_from_ogg(attachment.url)
-                    await message.channel.send(f"📝 Transcription:\n{transcript}")
+await message.channel.send(f"📝 Transcription:\n{transcript}")
+
+# Ответ на аудиосообщение GPT-4o
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "user", "content": transcript}
+    ]
+)
+await message.channel.send(f"💬 {response.choices[0].message.content}")
 
                     # Ответ на содержание аудио
                     response = client.chat.completions.create(

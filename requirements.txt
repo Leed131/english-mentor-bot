@@ -5,3 +5,4 @@ pydub
 langchain
 langchain-community
 ffmpeg-python
+edge-tts

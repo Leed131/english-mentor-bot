@@ -7,12 +7,8 @@ from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar
 from memory import log_interaction
 
-import aiohttp
-import tempfile
-import requests
-
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -48,7 +44,7 @@ async def on_message(message):
             try:
                 text = await transcribe_audio(attachment.url)
                 await message.channel.send(f"📝 Transcription:\n{text}")
-                reply = await correct_grammar(text)
+                reply = correct_grammar(user_id, text)
                 speech_path = await generate_speech(reply)
                 await message.channel.send(f"💬 {reply}")
                 await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
@@ -57,7 +53,7 @@ async def on_message(message):
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
     if message.content:
-        corrected = await correct_grammar(message.content)
+        corrected = correct_grammar(user_id, message.content)
         await message.channel.send(f"✅ Corrected:\n```{corrected}```")
         log_interaction(user_id, "text_correction", corrected)
 

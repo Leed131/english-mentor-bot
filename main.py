@@ -4,9 +4,9 @@ from discord.ext import commands
 from openai import OpenAI
 from vision import recognize_text_from_image
 from speech import transcribe_audio, generate_speech
-from grammar import correct_grammar
-from memory import log_interaction
+from grammar import correct_grammar, improve_style
 from tasks import generate_exercise
+from memory import log_interaction
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -47,50 +47,39 @@ async def on_message(message):
                 await message.channel.send(f"📝 Transcription:\n{text}")
 
                 reply = await correct_grammar(text)
+                improved = await improve_style(text)
                 speech_path = await generate_speech(reply)
 
-                await message.channel.send(f"💬 {reply}")
+                await message.channel.send(f"✅ Corrected:\n```{reply}```")
+                await message.channel.send(f"🧠 Improved style:\n```{improved}```")
                 await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
+
                 log_interaction(user_id, "audio_reply", reply)
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
     if message.content:
-        try:
-            corrected = await correct_grammar(message.content)
-            await message.channel.send(f"✅ Corrected:\n```{corrected}```")
-            log_interaction(user_id, "text_correction", corrected)
+        content = message.content.lower()
 
-            # Генерация объяснения (если есть смысл)
-            if message.content.strip().lower() != corrected.strip().lower():
-                explanation = f"The correction was made for clarity or grammar improvement."
-                await message.channel.send(f"📘 Explanation:\n{explanation}")
+        # Генерация упражнений по ключевым словам
+        if content.startswith("exercise") or "упражнение" in content:
+            try:
+                task = await generate_exercise(message.content)
+                await message.channel.send(f"📘 Exercise:\n{task}")
+                log_interaction(user_id, "exercise", task)
+            except Exception as e:
+                await message.channel.send(f"⚠️ Error generating exercise: {e}")
+        else:
+            try:
+                corrected = await correct_grammar(message.content)
+                improved = await improve_style(message.content)
 
-    # Генерация упражнения по запросу
-        if message.content.lower().startswith("exercise") or "упражнение" in message.content.lower():
-        try:
-            task = await generate_exercise(message.content)
-            await message.channel.send(f"📘 Exercise:\n{task}")
-            log_interaction(user_id, "exercise", task)
-        except Exception as e:
-            await message.channel.send(f"⚠️ Error generating exercise: {e}")
+                await message.channel.send(f"✅ Corrected:\n```{corrected}```")
+                await message.channel.send(f"🧠 Improved style:\n```{improved}```")
 
-            MAX_LENGTH = 1900
-            chunks = [exercise[i:i+MAX_LENGTH] for i in range(0, len(exercise), MAX_LENGTH)]
-
-            for i, chunk in enumerate(chunks):
-                prefix = f"📚 Exercise (part {i+1}/{len(chunks)}):" if len(chunks) > 1 else "📚 Here's a practice exercise:"
-                await message.channel.send(f"{prefix}\n```{chunk}```")
-
-            log_interaction(user_id, "generated_exercise", exercise)
-
-        except Exception as e:
-            await message.channel.send(f"⚠️ Error generating exercise: {e}")
-
-    await bot.process_commands(message)
-
-        except Exception as e:
-            await message.channel.send(f"⚠️ Error processing message: {e}")
+                log_interaction(user_id, "text_correction", corrected)
+            except Exception as e:
+                await message.channel.send(f"⚠️ Error correcting text: {e}")
 
     await bot.process_commands(message)
 

@@ -66,11 +66,25 @@ async def on_message(message):
                 explanation = f"The correction was made for clarity or grammar improvement."
                 await message.channel.send(f"📘 Explanation:\n{explanation}")
 
-            # Генерация упражнения по запросу
-            if "exercise" in message.content.lower():
-                exercise = await generate_exercise(message.content)
-                await message.channel.send(f"📚 Here's a practice exercise:\n```{exercise[:1900]}```")
-                log_interaction(user_id, "generated_exercise", exercise)
+    # Генерация упражнения по запросу
+    if message.content.lower().startswith("exercise") or "упражнение" in message.content.lower():
+        try:
+            await message.channel.send("🛠️ Generating exercise...")
+            exercise = await generate_exercise(message.content)
+
+            MAX_LENGTH = 1900
+            chunks = [exercise[i:i+MAX_LENGTH] for i in range(0, len(exercise), MAX_LENGTH)]
+
+            for i, chunk in enumerate(chunks):
+                prefix = f"📚 Exercise (part {i+1}/{len(chunks)}):" if len(chunks) > 1 else "📚 Here's a practice exercise:"
+                await message.channel.send(f"{prefix}\n```{chunk}```")
+
+            log_interaction(user_id, "generated_exercise", exercise)
+
+        except Exception as e:
+            await message.channel.send(f"⚠️ Error generating exercise: {e}")
+
+    await bot.process_commands(message)
 
         except Exception as e:
             await message.channel.send(f"⚠️ Error processing message: {e}")

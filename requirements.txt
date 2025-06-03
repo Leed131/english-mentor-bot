@@ -3,3 +3,5 @@ aiohttp
 openai>=1.0.0
 langchain
 langchain-community
+ffmpeg-python
+pydub

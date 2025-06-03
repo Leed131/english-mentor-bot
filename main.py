@@ -67,10 +67,13 @@ async def on_message(message):
                 await message.channel.send(f"📘 Explanation:\n{explanation}")
 
     # Генерация упражнения по запросу
-    if message.content.lower().startswith("exercise") or "упражнение" in message.content.lower():
+        if message.content.lower().startswith("exercise") or "упражнение" in message.content.lower():
         try:
-            await message.channel.send("🛠️ Generating exercise...")
-            exercise = await generate_exercise(message.content)
+            task = await generate_exercise(message.content)
+            await message.channel.send(f"📘 Exercise:\n{task}")
+            log_interaction(user_id, "exercise", task)
+        except Exception as e:
+            await message.channel.send(f"⚠️ Error generating exercise: {e}")
 
             MAX_LENGTH = 1900
             chunks = [exercise[i:i+MAX_LENGTH] for i in range(0, len(exercise), MAX_LENGTH)]

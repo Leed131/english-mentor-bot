@@ -6,17 +6,12 @@ from openai import OpenAI
 from vision import recognize_text_from_image
 from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar
+from style import improve_style
 from memory import log_interaction
 
-import aiohttp
-import tempfile
-import requests
-
-# API ключи
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# Настройки бота
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -60,15 +55,18 @@ async def on_message(message):
                 await message.channel.send(f"💬 {reply}")
                 await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
                 log_interaction(user_id, "audio_reply", reply)
-
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
-    # Обработка текстового сообщения
+    # Обработка текстовых сообщений
     if message.content:
         corrected = await correct_grammar(message.content)
         await message.channel.send(f"✅ Corrected:\n```{corrected}```")
         log_interaction(user_id, "text_correction", corrected)
+
+        styled = await improve_style(message.content)
+        await message.channel.send(f"🎨 Improved style:\n```{styled}```")
+        log_interaction(user_id, "style_improvement", styled)
 
     await bot.process_commands(message)
 

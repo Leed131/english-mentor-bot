@@ -1,5 +1,8 @@
 discord.py
 aiohttp
 openai>=1.0.0
-pydub
+langchain
+langchain-community
 ffmpeg-python
+pydub
+requests

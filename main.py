@@ -3,10 +3,15 @@ import discord
 from discord.ext import commands
 from openai import OpenAI
 import aiohttp
+import asyncio
+from pydub import AudioSegment
+import uuid
 
+# Инициализация OpenAI и Discord токенов
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+# Настройки Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -15,7 +20,7 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
-# 🖼️ Обработка изображения
+# 🎨 Распознавание текста с изображений
 async def recognize_text_from_image(url):
     response = client.chat.completions.create(
         model="gpt-4o",
@@ -24,7 +29,7 @@ async def recognize_text_from_image(url):
                 "role": "user",
                 "content": [
                     {"type": "image_url", "image_url": {"url": url}},
-                    {"type": "text", "text": "Please extract all readable text from this image and return it."}
+                    {"type": "text", "text": "Please extract all readable text from this image."}
                 ]
             }
         ],
@@ -32,65 +37,67 @@ async def recognize_text_from_image(url):
     )
     return response.choices[0].message.content.strip()
 
-# 🎧 Распознавание аудио (только mp3/wav)
-async def transcribe_audio_from_url(url):
+# 🎧 Распознавание речи из .ogg файла
+async def transcribe_audio_from_ogg(url):
+    ogg_path = f"{uuid.uuid4()}.ogg"
+    mp3_path = ogg_path.replace(".ogg", ".mp3")
+
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as resp:
-            audio_data = await resp.read()
+            with open(ogg_path, "wb") as f:
+                f.write(await resp.read())
 
-    with open("temp_audio.mp3", "wb") as f:
-        f.write(audio_data)
+    # Конвертация .ogg → .mp3
+    AudioSegment.from_ogg(ogg_path).export(mp3_path, format="mp3")
 
-    with open("temp_audio.mp3", "rb") as f:
+    # Отправка в OpenAI для транскрипции
+    with open(mp3_path, "rb") as audio_file:
         transcript = client.audio.transcriptions.create(
             model="whisper-1",
-            file=f
+            file=audio_file
         )
+    
+    os.remove(ogg_path)
+    os.remove(mp3_path)
     return transcript.text
 
+# 📥 Обработка всех типов сообщений
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
         return
 
-    # Обработка изображений
     if message.attachments:
         for attachment in message.attachments:
             filename = attachment.filename.lower()
-            url = attachment.url
 
-            # 📷 Обработка изображения
+            # 🖼️ Картинка
             if filename.endswith((".png", ".jpg", ".jpeg")):
                 await message.channel.send("🔍 Scanning your image...")
                 try:
-                    result = await recognize_text_from_image(url)
+                    result = await recognize_text_from_image(attachment.url)
                     await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
                 except Exception as e:
                     await message.channel.send(f"⚠️ Error reading image: {e}")
 
-            # 🎧 Обработка аудио
-            elif filename.endswith((".mp3", ".wav")):
-                await message.channel.send("🎧 Transcribing audio...")
+            # 🎧 Голосовое сообщение
+            elif filename.endswith(".ogg"):
+                await message.channel.send("🎙️ Transcribing audio...")
                 try:
-                    transcription = await transcribe_audio_from_url(url)
-                    await message.channel.send(f"📝 Transcription:\n{transcription}")
-                except Exception as e:
-                    await message.channel.send(f"⚠️ Audio error: {e}")
-            else:
-                await message.channel.send("⚠️ Unsupported file format. Use .jpg, .png, .mp3 or .wav.")
+                    transcript = await transcribe_audio_from_ogg(attachment.url)
+                    await message.channel.send(f"📝 Transcription:\n{transcript}")
 
-    # Ответ на обычный текст
-    if message.content:
-        try:
-            completion = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "user", "content": message.content}
-                ]
-            )
-            await message.channel.send(completion.choices[0].message.content.strip())
-        except Exception as e:
-            await message.channel.send(f"⚠️ Text error: {e}")
+                    # Ответ на содержание аудио
+                    response = client.chat.completions.create(
+                        model="gpt-4o",
+                        messages=[{"role": "user", "content": transcript}]
+                    )
+                    await message.channel.send(f"💬 {response.choices[0].message.content}")
+                except Exception as e:
+                    await message.channel.send(f"⚠️ Error transcribing audio: {e}")
+
+            else:
+                await message.channel.send("⚠️ Unsupported file format. Use .jpg, .png, or .ogg")
 
     await bot.process_commands(message)
 

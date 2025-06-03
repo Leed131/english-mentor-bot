@@ -1,22 +1,21 @@
+from memory import log_interaction
+from openai import OpenAI
 import os
-import json
 
-USER_DATA_DIR = "user_data"
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def log_interaction(user_id, interaction_type, content):
-    os.makedirs(USER_DATA_DIR, exist_ok=True)
-    file_path = os.path.join(USER_DATA_DIR, f"{user_id}.json")
+def correct_grammar(user_id, text):
+    prompt = f"Check the grammar and suggest corrections for the following sentence:\n\n{text}\n\nAlso briefly explain the corrections if needed."
+    response = client.chat.completions.create(
+        model="gpt-4o",
+        messages=[{"role": "user", "content": prompt}]
+    )
+    correction = response.choices[0].message.content.strip()
 
-    if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            data = json.load(f)
-    else:
-        data = []
+    # Логируем исходный текст и исправление
+    log_interaction(user_id, "grammar_check", {
+        "input": text,
+        "correction": correction
+    })
 
-    data.append({"type": interaction_type, "content": content})
-
-    with open(file_path, "w") as f:
-        json.dump(data, f, indent=2)
-def correct_grammar(text):
-    # Пока возвращает тот же текст. Позже добавим проверку и исправления.
-    return text
+    return correction

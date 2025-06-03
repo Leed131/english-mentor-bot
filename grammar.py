@@ -7,7 +7,7 @@ async def correct_grammar(text):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are a helpful English tutor who helps correct grammar, vocabulary, and clarity. Provide short and polite explanations."},
+            {"role": "system", "content": "You are an English grammar expert. Correct the user's text without changing its meaning."},
             {"role": "user", "content": text}
         ],
         max_tokens=500

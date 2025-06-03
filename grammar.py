@@ -17,3 +17,6 @@ def log_interaction(user_id, interaction_type, content):
 
     with open(file_path, "w") as f:
         json.dump(data, f, indent=2)
+def correct_grammar(text):
+    # Пока возвращает тот же текст. Позже добавим проверку и исправления.
+    return text

@@ -11,14 +11,12 @@ async def transcribe_audio(url):
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio:
         temp_audio.write(response.content)
         temp_audio.flush()
-        audio = AudioSegment.from_file(temp_audio.name)
         wav_path = temp_audio.name.replace(".mp3", ".wav")
+        audio = AudioSegment.from_file(temp_audio.name)
         audio.export(wav_path, format="wav")
+
         with open(wav_path, "rb") as f:
-            transcript = client.audio.transcriptions.create(
-                model="whisper-1",
-                file=f
-            )
+            transcript = client.audio.transcriptions.create(model="whisper-1", file=f)
         return transcript.text
 
 async def generate_speech(text):

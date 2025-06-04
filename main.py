@@ -7,13 +7,10 @@ from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar, explain_correction
 from memory import log_interaction
 from tasks import generate_task
-
-import aiohttp
 import tempfile
-import requests
 
-TOKEN = os.getenv("DISCORD_TOKEN")
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+TOKEN = os.getenv("DISCORD_TOKEN")
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -35,48 +32,52 @@ async def on_message(message):
     for attachment in message.attachments:
         filename = attachment.filename.lower()
 
-        # Image processing
         if filename.endswith(SUPPORTED_IMAGES):
             await message.channel.send("🖼️ Processing image...")
             try:
                 result = await recognize_text_from_image(attachment.url)
-                await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
+                await message.channel.send(f"📄 I found this:\n```{result[:1900]}```")
                 log_interaction(user_id, "image_text", result)
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
 
-        # Audio processing
         elif filename.endswith(SUPPORTED_AUDIO):
-            await message.channel.send("🎙️ Transcribing audio...")
+            await message.channel.send("🎧 Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
                 await message.channel.send(f"📝 Transcription:\n{text}")
 
-                reply = await correct_grammar(text)
-                await message.channel.send(f"✅ Corrected:\n```{reply}```")
+                corrected = await correct_grammar(text)
+                explanation = await explain_correction(text, corrected)
+                speech_path = await generate_speech(corrected)
 
-                speech_path = await generate_speech(reply)
+                await message.channel.send(f"✅ Corrected:\n```{corrected}```")
+                await message.channel.send(f"🧠 Explanation:\n{explanation}")
                 await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
-
-                log_interaction(user_id, "audio_reply", reply)
-
+                log_interaction(user_id, "audio_reply", corrected)
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
-    # Text message handling
     if message.content:
-        text = message.content.lower()
-        if text.startswith("explain") or "объясни" in text:
-            target = message.content.replace("explain", "").replace("объясни", "").strip()
-            explanation = await explain_correction(target)
-            await message.channel.send(f"📘 Explanation:\n{explanation}")
-        elif text.startswith("exercise") or "упражнение" in text:
-            task = await generate_task(message.content)
-            await message.channel.send(f"✍️ Exercise:\n{task}")
-        else:
-            corrected = await correct_grammar(message.content)
-            await message.channel.send(f"✅ Corrected:\n```{corrected}```")
-            log_interaction(user_id, "text_correction", corrected)
+        content = message.content.lower()
+
+        # Грамматика
+        corrected = await correct_grammar(message.content)
+        await message.channel.send(f"✅ Corrected:\n```{corrected}```")
+        log_interaction(user_id, "text_correction", corrected)
+
+        if "explain" in content or "почему" in content:
+            explanation = await explain_correction(message.content, corrected)
+            await message.channel.send(f"🧠 Explanation:\n{explanation}")
+
+        # Генерация упражнений
+        if content.startswith("exercise") or "упражнение" in content:
+            try:
+                task = await generate_task(message.content)
+                await message.channel.send(f"📝 Exercise:\n{task}")
+                log_interaction(user_id, "exercise", task)
+            except Exception as e:
+                await message.channel.send(f"⚠️ Error generating exercise: {e}")
 
     await bot.process_commands(message)
 

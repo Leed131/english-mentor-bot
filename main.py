@@ -4,24 +4,41 @@ from discord.ext import commands
 from openai import OpenAI
 from vision import recognize_text_from_image
 from speech import transcribe_audio, generate_speech
-from grammar import correct_grammar, explain_correction
-from style import improve_style
+from grammar import correct_grammar
 from tasks import generate_task
 from memory import log_interaction
-import aiohttp
-import tempfile
+from langchain.chat_models import ChatOpenAI
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationChain
+from langchain_core.prompts import PromptTemplate
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+# Инициализация
+openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 TOKEN = os.getenv("DISCORD_TOKEN")
 
+# Создание памяти и цепочки LangChain
+memory = ConversationBufferMemory(return_messages=True)
+conversation_chain = ConversationChain(llm=llm, memory=memory)
+
+# Настройка Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+SUPPORTED_AUDIO = (".mp3", ".wav", ".m4a", ".ogg")
+SUPPORTED_IMAGES = (".jpg", ".jpeg", ".png")
 
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
 
+# ⛓️ Диалог с ботом через LangChain
+async def chat_with_bot(message_text: str) -> str:
+    reply = conversation_chain.run(message_text)
+    return reply
+
+# 📦 Основная логика бота
 @bot.event
 async def on_message(message):
     if message.author == bot.user:
@@ -29,13 +46,10 @@ async def on_message(message):
 
     user_id = str(message.author.id)
     content = message.content.lower()
-    SUPPORTED_AUDIO = (".mp3", ".wav", ".m4a", ".ogg")
-    SUPPORTED_IMAGES = (".jpg", ".jpeg", ".png")
 
     for attachment in message.attachments:
         filename = attachment.filename.lower()
 
-        # 🖼️ Image processing
         if filename.endswith(SUPPORTED_IMAGES):
             await message.channel.send("🖼️ Processing image...")
             try:
@@ -45,42 +59,34 @@ async def on_message(message):
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
 
-        # 🎧 Audio processing
         elif filename.endswith(SUPPORTED_AUDIO):
             await message.channel.send("🎙️ Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
                 await message.channel.send(f"📝 Transcription:\n{text}")
-
-                reply = await correct_grammar(text)
-                speech_path = await generate_speech(reply)
-
+                reply = await chat_with_bot(text)
+                voice_path = await generate_speech(reply)
                 await message.channel.send(f"💬 {reply}")
-                await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
-                log_interaction(user_id, "audio_reply", reply)
+                await message.channel.send(file=discord.File(voice_path, filename="response.mp3"))
+                log_interaction(user_id, "audio_dialogue", reply)
             except Exception as e:
-                await message.channel.send(f"⚠️ Error processing audio: {e}")
+                await message.channel.send(f"⚠️ Audio error: {e}")
 
-    # 💬 Text command handling
     if message.content:
-        response_text = ""
         try:
-            if content.startswith("explain") or "поясни" in content:
-                explanation = await explain_correction(message.content)
-                response_text = f"📘 Explanation:\n{explanation}"
-            elif content.startswith("style") or "стиль" in content:
-                improved = await improve_style(message.content)
-                response_text = f"🍂 Improved style:\n{improved}"
-            elif content.startswith("exercise") or "упражнение" in content:
+            if "exercise" in content or "упражнение" in content:
                 topic = message.content.replace("exercise", "").replace("упражнение", "").strip()
                 task = await generate_task(topic or "grammar")
-                response_text = f"🧩 Exercise on *{topic or 'grammar'}*:\n{task}"
-            else:
+                await message.channel.send(f"🧩 Exercise:\n{task}")
+                log_interaction(user_id, "task", task)
+            elif "grammar" in content or "проверь" in content:
                 corrected = await correct_grammar(message.content)
-                response_text = f"✅ Corrected:\n```{corrected}```"
-
-            await message.channel.send(response_text[:2000])
-            log_interaction(user_id, "text", response_text)
+                await message.channel.send(f"✅ Corrected:\n```{corrected}```")
+                log_interaction(user_id, "grammar", corrected)
+            else:
+                response = await chat_with_bot(message.content)
+                await message.channel.send(f"💬 {response}")
+                log_interaction(user_id, "dialogue", response)
         except Exception as e:
             await message.channel.send(f"⚠️ Error: {e}")
 

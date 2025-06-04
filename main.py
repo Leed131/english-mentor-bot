@@ -6,10 +6,14 @@ from vision import recognize_text_from_image
 from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar, explain_correction
 from memory import log_interaction
-from tasks import generate_exercises
+from tasks import generate_task
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+import aiohttp
+import tempfile
+import requests
+
 TOKEN = os.getenv("DISCORD_TOKEN")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -31,6 +35,7 @@ async def on_message(message):
     for attachment in message.attachments:
         filename = attachment.filename.lower()
 
+        # Image processing
         if filename.endswith(SUPPORTED_IMAGES):
             await message.channel.send("🖼️ Processing image...")
             try:
@@ -40,38 +45,37 @@ async def on_message(message):
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
 
+        # Audio processing
         elif filename.endswith(SUPPORTED_AUDIO):
             await message.channel.send("🎙️ Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
                 await message.channel.send(f"📝 Transcription:\n{text}")
-                corrected = await correct_grammar(text)
-                explanation = await explain_correction(text, corrected)
-                reply = corrected
-                audio_path = await generate_speech(reply)
-                await message.channel.send(f"💬 {reply}")
-                await message.channel.send(file=discord.File(audio_path, filename="response.mp3"))
-                if explanation:
-                    await message.channel.send(f"📘 Explanation:\n{explanation}")
+
+                reply = await correct_grammar(text)
+                await message.channel.send(f"✅ Corrected:\n```{reply}```")
+
+                speech_path = await generate_speech(reply)
+                await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
+
                 log_interaction(user_id, "audio_reply", reply)
+
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
+    # Text message handling
     if message.content:
-        if message.content.lower().startswith("exercise") or "упражнение" in message.content.lower():
-            prompt = message.content
-            try:
-                task = await generate_exercises(prompt)
-                await message.channel.send(f"📚 Generated exercise:\n```{task[:1900]}```")
-                log_interaction(user_id, "exercise", task)
-            except Exception as e:
-                await message.channel.send(f"⚠️ Error creating exercise: {e}")
+        text = message.content.lower()
+        if text.startswith("explain") or "объясни" in text:
+            target = message.content.replace("explain", "").replace("объясни", "").strip()
+            explanation = await explain_correction(target)
+            await message.channel.send(f"📘 Explanation:\n{explanation}")
+        elif text.startswith("exercise") or "упражнение" in text:
+            task = await generate_task(message.content)
+            await message.channel.send(f"✍️ Exercise:\n{task}")
         else:
             corrected = await correct_grammar(message.content)
-            explanation = await explain_correction(message.content, corrected)
             await message.channel.send(f"✅ Corrected:\n```{corrected}```")
-            if explanation:
-                await message.channel.send(f"📘 Explanation:\n{explanation}")
             log_interaction(user_id, "text_correction", corrected)
 
     await bot.process_commands(message)

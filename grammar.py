@@ -7,20 +7,18 @@ async def correct_grammar(text):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are an English teacher. Correct the grammar of the student's message. Return only the corrected version."},
+            {"role": "system", "content": "Correct the grammar and improve clarity, but do not explain."},
             {"role": "user", "content": text}
-        ],
-        max_tokens=500
+        ]
     )
     return response.choices[0].message.content.strip()
 
-async def explain_correction(text):
+async def explain_correction(original_text, corrected_text):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {"role": "system", "content": "You are an English teacher. Explain the grammar correction in detail in clear terms."},
-            {"role": "user", "content": text}
-        ],
-        max_tokens=700
+            {"role": "system", "content": "Explain the grammatical changes made to the sentence."},
+            {"role": "user", "content": f"The original sentence was: \"{original_text}\"\nThe corrected version is: \"{corrected_text}\"\nPlease explain why this correction was made."}
+        ]
     )
     return response.choices[0].message.content.strip()

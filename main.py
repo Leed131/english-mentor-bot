@@ -4,12 +4,9 @@ from discord.ext import commands
 from openai import OpenAI
 from vision import recognize_text_from_image
 from speech import transcribe_audio, generate_speech
-from grammar import correct_grammar, explain_correction
+from grammar import correct_grammar, explain_correction_audio
 from memory import log_interaction
-
-import aiohttp
-import tempfile
-import requests
+from tasks import generate_exercise_from_topic, generate_exercise_from_sample
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -17,9 +14,6 @@ TOKEN = os.getenv("DISCORD_TOKEN")
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
-
-# 🔁 Временное хранилище для последних запросов пользователя
-memory = {}
 
 @bot.event
 async def on_ready():
@@ -41,7 +35,8 @@ async def on_message(message):
             await message.channel.send("🖼️ Processing image...")
             try:
                 result = await recognize_text_from_image(attachment.url)
-                await message.channel.send(f"📖 I found this:\n```{result[:1900]}```")
+                await message.channel.send(f"📖 I found this:
+```{result[:1900]}```")
                 log_interaction(user_id, "image_text", result)
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
@@ -50,40 +45,43 @@ async def on_message(message):
             await message.channel.send("🎙️ Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
-                await message.channel.send(f"📝 Transcription:\n{text}")
+                await message.channel.send(f"📝 Transcription:
+{text}")
 
-                memory[user_id] = {"last_input": text}  # сохраняем для explain
                 reply = await correct_grammar(text)
-                await message.channel.send(f"✅ Corrected:\n```{reply}```")
-
-                speech_path = await generate_speech(reply)
-                await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
-
+                audio_path = await generate_speech(reply)
+                await message.channel.send(f"💬 {reply}")
+                await message.channel.send(file=discord.File(audio_path, filename="response.mp3"))
                 log_interaction(user_id, "audio_reply", reply)
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
-    # ✅ Коррекция текста
     if message.content:
-        content = message.content.strip()
+        user_input = message.content.strip().lower()
 
-        if content.lower() in ("explain", "поясни"):
-            if user_id in memory and "last_input" in memory[user_id]:
-                try:
-                    explanation = await explain_correction(memory[user_id]["last_input"])
-                    await message.channel.send(f"📘 Explanation:\n{explanation}")
-                except Exception as e:
-                    await message.channel.send(f"⚠️ Error generating explanation: {e}")
-            else:
-                await message.channel.send("⚠️ No previous sentence found to explain.")
+        if user_input.startswith("почему") or "explain" in user_input:
+            explanation_audio_path = await explain_correction_audio(message.content)
+            await message.channel.send("🔍 Here's the explanation:")
+            await message.channel.send(file=discord.File(explanation_audio_path, filename="explanation.mp3"))
+
+        elif user_input.startswith("создай упражнение") or "exercise on" in user_input:
+            topic = message.content.split(" ", 2)[-1]
+            exercise = await generate_exercise_from_topic(topic)
+            await message.channel.send(f"🧩 Exercise:
+```{exercise[:1900]}```")
+            log_interaction(user_id, "exercise_topic", topic)
+
+        elif user_input.startswith("пример") or "example" in user_input:
+            exercise = await generate_exercise_from_sample(message.content)
+            await message.channel.send(f"🧠 Based on your example:
+```{exercise[:1900]}```")
+            log_interaction(user_id, "exercise_example", message.content)
+
         else:
-            memory[user_id] = {"last_input": content}
-            try:
-                corrected = await correct_grammar(content)
-                await message.channel.send(f"✅ Corrected:\n```{corrected}```")
-                log_interaction(user_id, "text_correction", corrected)
-            except Exception as e:
-                await message.channel.send(f"⚠️ Error correcting text: {e}")
+            corrected = await correct_grammar(message.content)
+            await message.channel.send(f"✅ Corrected:
+```{corrected}```")
+            log_interaction(user_id, "text_correction", corrected)
 
     await bot.process_commands(message)
 

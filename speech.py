@@ -1,21 +1,10 @@
+from openai import OpenAI
 import os
 import tempfile
-from openai import OpenAI
-from pydub import AudioSegment
 import requests
+from pydub import AudioSegment
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
-async def generate_speech(text):
-    speech_response = client.audio.speech.create(
-        model="tts-1-hd",
-        voice="alloy",
-        input=text
-    )
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
-    with open(temp_file.name, "wb") as f:
-        f.write(speech_response.content)
-    return temp_file.name
 
 async def transcribe_audio(url):
     response = requests.get(url)
@@ -30,3 +19,14 @@ async def transcribe_audio(url):
         with open(wav_path, "rb") as f:
             transcript = client.audio.transcriptions.create(model="whisper-1", file=f)
         return transcript.text
+
+async def generate_speech(text):
+    speech = client.audio.speech.create(
+        model="tts-1-hd",
+        voice="alloy",
+        input=text
+    )
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".mp3")
+    with open(temp_file.name, "wb") as f:
+        f.write(speech.content)
+    return temp_file.name

@@ -1,6 +1,5 @@
 from openai import OpenAI
 import os
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 async def recognize_text_from_image(url):
@@ -10,7 +9,7 @@ async def recognize_text_from_image(url):
             "role": "user",
             "content": [
                 {"type": "image_url", "image_url": {"url": url}},
-                {"type": "text", "text": "Please extract all readable text from this image and return it."}
+                {"type": "text", "text": "Extract all readable English text from this image."}
             ]
         }],
         max_tokens=1000

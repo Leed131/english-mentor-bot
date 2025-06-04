@@ -1,5 +1,5 @@
 discord.py
-openai
+openai>=1.0.
 aiohttp
 requests
 pydub

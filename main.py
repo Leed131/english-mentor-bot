@@ -7,20 +7,17 @@ from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar
 from tasks import generate_task
 from memory import log_interaction
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationChain
 
-# Инициализация
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# LangChain память и цепь
+llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 memory = ConversationBufferMemory(return_messages=True)
 conversation_chain = ConversationChain(llm=llm, memory=memory)
 
-# Настройка Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -28,12 +25,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SUPPORTED_AUDIO = (".mp3", ".wav", ".m4a", ".ogg")
 SUPPORTED_IMAGES = (".jpg", ".jpeg", ".png")
 
-async def chat_with_bot(message_text: str) -> str:
-    return conversation_chain.run(message_text)
-
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
+
+async def chat_with_bot(text: str) -> str:
+    return conversation_chain.run(text)
 
 @bot.event
 async def on_message(message):

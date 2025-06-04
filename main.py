@@ -1,70 +1,35 @@
-import os
-import discord
-from discord.ext import commands
-from openai import OpenAI
-from vision import recognize_text_from_image
-from speech import transcribe_audio, generate_speech
-from grammar import correct_grammar, explain_correction
-from tasks import generate_task
-from memory import log_interaction
-from llm_chain import run_chain
+await message.channel.send(f"📝 Transcription:\n{text}")
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-TOKEN = os.getenv("DISCORD_TOKEN")
+                reply = await correct_grammar(text)
+                speech_path = await generate_speech(reply)
 
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+                await message.channel.send(f"💬 {reply}")
+                await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
+                log_interaction(user_id, "audio_reply", reply)
+            except Exception as e:
+                await message.channel.send(f"⚠️ Error processing audio: {e}")
 
-@bot.event
-async def on_ready():
-    print(f"✅ Logged in as {bot.user}")
-
-@bot.event
-async def on_message(message):
-    if message.author == bot.user:
-        return
-
-    user_id = str(message.author.id)
-
-    for attachment in message.attachments:
-        filename = attachment.filename.lower()
-
-        if filename.endswith((".jpg", ".jpeg", ".png")):
-            await message.channel.send("📷 Processing image...")
-            text = await recognize_text_from_image(attachment.url)
-            await message.channel.send(f"📖 Extracted:\n```{text}```")
-            log_interaction(user_id, "image_text", text)
-
-        elif filename.endswith((".mp3", ".wav", ".m4a", ".ogg")):
-            await message.channel.send("🎧 Transcribing...")
-            transcript = await transcribe_audio(attachment.url)
-            await message.channel.send(f"📝 Transcript:\n```{transcript}```")
-
-            reply = await run_chain(transcript)
-            speech_path = await generate_speech(reply)
-
-            await message.channel.send(f"💬 {reply}")
-            await message.channel.send(file=discord.File(speech_path, filename="response.mp3"))
-            log_interaction(user_id, "audio_reply", reply)
-
+    # Text command handling
     if message.content:
-        if message.content.startswith("!task"):
-            topic = message.content[len("!task"):].strip()
-            task = await generate_task(topic or None)
-            await message.channel.send(f"🧩 Task:\n```{task}```")
-            log_interaction(user_id, "generated_task", task)
-
-        elif message.content.startswith("!explain"):
-            text = message.content[len("!explain"):].strip()
-            explanation = await explain_correction(text)
-            await message.channel.send(f"🔍 Explanation:\n```{explanation}```")
-            log_interaction(user_id, "explanation", explanation)
-
-        else:
-            corrected = await correct_grammar(message.content)
-            await message.channel.send(f"✅ Corrected:\n```{corrected}```")
-            log_interaction(user_id, "text_correction", corrected)
+        response_text = ""
+        try:
+            if content.startswith("explain") or "поясни" in content:
+                explanation = await explain_correction(message.content)
+                response_text = f"📘 Explanation:\n{explanation}"
+            elif content.startswith("style") or "стиль" in content:
+                improved = await improve_style(message.content)
+                response_text = f"🍂 Improved style:\n{improved}"
+            elif content.startswith("exercise") or "упражнение" in content:
+                topic = message.content.replace("exercise", "").replace("упражнение", "").strip()
+                task = await generate_task(topic or "grammar")
+                response_text = f"🧩 Exercise on *{topic or 'grammar'}*:\n{task}"
+            else:
+                corrected = await correct_grammar(message.content)
+                response_text = f"✅ Corrected:\n```{corrected}```"
+            await message.channel.send(response_text[:2000])
+            log_interaction(user_id, "text", response_text)
+        except Exception as e:
+            await message.channel.send(f"⚠️ Error: {e}")
 
     await bot.process_commands(message)
 

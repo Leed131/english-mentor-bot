@@ -1,8 +1,8 @@
 discord.py
-aiohttp
-openai>=1.0.0
-langchain
-langchain-community
-ffmpeg-python
+openai
 pydub
+aiohttp
 requests
+langchain
+langchain-core
+langchain-community

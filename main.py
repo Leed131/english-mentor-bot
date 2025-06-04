@@ -35,7 +35,7 @@ async def on_message(message):
     for attachment in message.attachments:
         filename = attachment.filename.lower()
 
-        # Image processing
+        # 🖼️ Image processing
         if filename.endswith(SUPPORTED_IMAGES):
             await message.channel.send("🖼️ Processing image...")
             try:
@@ -45,12 +45,12 @@ async def on_message(message):
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
 
-        # Audio processing
+        # 🎧 Audio processing
         elif filename.endswith(SUPPORTED_AUDIO):
             await message.channel.send("🎙️ Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
-              await message.channel.send(f"📝 Transcription:\n{text}")
+                await message.channel.send(f"📝 Transcription:\n{text}")
 
                 reply = await correct_grammar(text)
                 speech_path = await generate_speech(reply)
@@ -61,7 +61,7 @@ async def on_message(message):
             except Exception as e:
                 await message.channel.send(f"⚠️ Error processing audio: {e}")
 
-    # Text command handling
+    # 💬 Text command handling
     if message.content:
         response_text = ""
         try:
@@ -78,6 +78,7 @@ async def on_message(message):
             else:
                 corrected = await correct_grammar(message.content)
                 response_text = f"✅ Corrected:\n```{corrected}```"
+
             await message.channel.send(response_text[:2000])
             log_interaction(user_id, "text", response_text)
         except Exception as e:

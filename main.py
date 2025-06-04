@@ -7,21 +7,20 @@ from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar
 from tasks import generate_task
 from memory import log_interaction
-
-from langchain_community.chat_models import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationChain
 
-# 🔐 API ключи
+# Инициализация
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-# 🧠 LangChain память и цепочка
+# LangChain память и цепь
 memory = ConversationBufferMemory(return_messages=True)
 conversation_chain = ConversationChain(llm=llm, memory=memory)
 
-# 🎮 Discord настройки
+# Настройка Discord
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix="!", intents=intents)
@@ -29,12 +28,12 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 SUPPORTED_AUDIO = (".mp3", ".wav", ".m4a", ".ogg")
 SUPPORTED_IMAGES = (".jpg", ".jpeg", ".png")
 
+async def chat_with_bot(message_text: str) -> str:
+    return conversation_chain.run(message_text)
+
 @bot.event
 async def on_ready():
     print(f"✅ Logged in as {bot.user}")
-
-async def chat_with_bot(message_text: str) -> str:
-    return conversation_chain.run(message_text)
 
 @bot.event
 async def on_message(message):
@@ -44,11 +43,9 @@ async def on_message(message):
     user_id = str(message.author.id)
     content = message.content.lower()
 
-    # 📦 Вложения (изображения, аудио)
     for attachment in message.attachments:
         filename = attachment.filename.lower()
 
-        # 🖼️ Обработка изображения
         if filename.endswith(SUPPORTED_IMAGES):
             await message.channel.send("🖼️ Processing image...")
             try:
@@ -58,21 +55,19 @@ async def on_message(message):
             except Exception as e:
                 await message.channel.send(f"⚠️ Error reading image: {e}")
 
-        # 🎙️ Обработка аудио
         elif filename.endswith(SUPPORTED_AUDIO):
             await message.channel.send("🎙️ Transcribing audio...")
             try:
                 text = await transcribe_audio(attachment.url)
-                await message.channel.send(f"📝 You said:\n{text}")
+                await message.channel.send(f"📝 Transcription:\n{text}")
                 reply = await chat_with_bot(text)
                 voice_path = await generate_speech(reply)
-                await message.channel.send(f"💬 Reply:\n{reply}")
+                await message.channel.send(f"💬 {reply}")
                 await message.channel.send(file=discord.File(voice_path, filename="response.mp3"))
-                log_interaction(user_id, "audio_reply", reply)
+                log_interaction(user_id, "audio_dialogue", reply)
             except Exception as e:
                 await message.channel.send(f"⚠️ Audio error: {e}")
 
-    # 💬 Обработка текстового сообщения
     if message.content:
         try:
             if "exercise" in content or "упражнение" in content:

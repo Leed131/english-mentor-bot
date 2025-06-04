@@ -4,13 +4,15 @@ import requests
 from openai import OpenAI
 from pydub import AudioSegment
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+client = OpenAI(api_key=os.
+                getenv("OPENAI_API_KEY"))
 
 async def transcribe_audio(url):
     response = requests.get(url)
     with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_audio:
         temp_audio.write(response.content)
         temp_audio.flush()
+
         wav_path = temp_audio.name.replace(".mp3", ".wav")
         audio = AudioSegment.from_file(temp_audio.name)
         audio.export(wav_path, format="wav")

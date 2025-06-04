@@ -1,8 +1,8 @@
 discord.py
 openai
-pydub
 aiohttp
 requests
+pydub
 langchain
-langchain-core
 langchain-community
+langchain-openai

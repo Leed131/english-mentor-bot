@@ -7,10 +7,7 @@ async def correct_grammar(text):
     response = client.chat.completions.create(
         model="gpt-4o",
         messages=[
-            {
-                "role": "user",
-                "content": f"Correct the grammar and improve clarity: {text}"
-            }
+            {"role": "user", "content": f"Correct the grammar and improve clarity: {text}"}
         ]
     )
     return response.choices[0].message.content.strip()

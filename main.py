@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 
+logger = logging.getLogger(__name__)
 
 REQUIRED_ENVIRONMENT_VARIABLES = (
     "OPENAI_API_KEY",
@@ -12,6 +13,8 @@ REQUIRED_ENVIRONMENT_VARIABLES = (
 
 def validate_environment() -> None:
     missing = [name for name in REQUIRED_ENVIRONMENT_VARIABLES if not os.getenv(name)]
+    if os.getenv("RENDER") and not os.getenv("DATABASE_URL"):
+        missing.append("DATABASE_URL")
     if missing:
         names = ", ".join(missing)
         raise RuntimeError(f"Missing required environment variables: {names}")
@@ -34,7 +37,10 @@ async def run_bots() -> None:
     validate_environment()
 
     from discord_bot import run_discord_bot
+    from study_memory import initialize_study_memory
     from telegram_bot import run_telegram_bot
+
+    await asyncio.to_thread(initialize_study_memory)
 
     tasks = {
         asyncio.create_task(run_discord_bot(), name="Discord bot"),
@@ -69,7 +75,7 @@ def main() -> None:
     try:
         asyncio.run(run_bots())
     except Exception as error:
-        logging.error("Bot process stopped: %s", error)
+        logger.error("Bot process stopped: %s", error)
         raise SystemExit(1) from error
 
 

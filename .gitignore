@@ -7,3 +7,5 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 user_data/
+study_memory.db
+study_memory.db-*

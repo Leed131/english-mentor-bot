@@ -4,7 +4,6 @@ from typing import Final
 
 from openai import AsyncOpenAI
 
-
 DEFAULT_MODEL: Final = "gpt-4o-mini"
 MAX_HISTORY_MESSAGES: Final = 20
 
@@ -53,7 +52,12 @@ class LanguageMentor:
             self._client = AsyncOpenAI(api_key=api_key)
         return self._client
 
-    async def reply(self, user_id: str | int, text: str) -> str:
+    async def reply(
+        self,
+        user_id: str | int,
+        text: str,
+        learner_context: str | None = None,
+    ) -> str:
         key = self.history_key(user_id)
         lock = self._locks.setdefault(key, asyncio.Lock())
 
@@ -61,11 +65,25 @@ class LanguageMentor:
             history = self._histories.setdefault(key, [])
             user_message = {"role": "user", "content": text}
 
+            system_messages = [{"role": "system", "content": self.system_prompt}]
+            if learner_context:
+                system_messages.append(
+                    {
+                        "role": "system",
+                        "content": (
+                            "Use this compact, database-backed learner context when it "
+                            "is relevant. Do not claim that an exercise was completed or "
+                            "change progress yourself:\n"
+                            f"{learner_context}"
+                        ),
+                    }
+                )
+
             response = await self._get_client().chat.completions.create(
                 model=os.getenv("OPENAI_MODEL") or DEFAULT_MODEL,
                 temperature=0.7,
                 messages=[
-                    {"role": "system", "content": self.system_prompt},
+                    *system_messages,
                     *history,
                     user_message,
                 ],

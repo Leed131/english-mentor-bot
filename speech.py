@@ -7,8 +7,7 @@ from urllib.parse import urlparse
 import requests
 from openai import AsyncOpenAI
 
-
-client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+_client: AsyncOpenAI | None = None
 SUPPORTED_AUDIO_SUFFIXES = {
     ".flac",
     ".mp3",
@@ -22,6 +21,16 @@ SUPPORTED_AUDIO_SUFFIXES = {
 }
 
 
+def _get_client() -> AsyncOpenAI:
+    global _client
+    if _client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise RuntimeError("OPENAI_API_KEY is not set")
+        _client = AsyncOpenAI(api_key=api_key)
+    return _client
+
+
 def _audio_suffix_from_url(url: str) -> str:
     suffix = Path(urlparse(url).path).suffix.lower()
     if suffix in SUPPORTED_AUDIO_SUFFIXES:
@@ -30,7 +39,8 @@ def _audio_suffix_from_url(url: str) -> str:
 
 
 async def transcribe_audio_file(path: str, language: str | None = None) -> str:
-    with open(path, "rb") as audio_file:
+    # The SDK needs an open file object for the duration of the awaited upload.
+    with open(path, "rb") as audio_file:  # noqa: ASYNC230
         request = {
             "model": "whisper-1",
             "file": audio_file,
@@ -38,7 +48,7 @@ async def transcribe_audio_file(path: str, language: str | None = None) -> str:
         if language:
             request["language"] = language
 
-        transcript = await client.audio.transcriptions.create(**request)
+        transcript = await _get_client().audio.transcriptions.create(**request)
 
     text = transcript.text.strip()
     if not text:
@@ -64,7 +74,7 @@ async def transcribe_audio(url: str, language: str | None = None) -> str:
 
 
 async def generate_speech(text: str) -> str:
-    speech_response = await client.audio.speech.create(
+    speech_response = await _get_client().audio.speech.create(
         model="tts-1-hd",
         voice="alloy",
         input=text,
@@ -73,7 +83,8 @@ async def generate_speech(text: str) -> str:
     with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
         temp_path = temp_file.name
 
-    with open(temp_path, "wb") as output_file:
+    # This small local write cannot outlive the SDK response object.
+    with open(temp_path, "wb") as output_file:  # noqa: ASYNC230
         output_file.write(speech_response.content)
 
     return temp_path

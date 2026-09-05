@@ -4,7 +4,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, MessageHandler, filters
 
 from vision import analyze_image_file
@@ -60,7 +60,15 @@ Analyze the attached image carefully. Read the relevant visible Danish text and 
 User instruction:
 {user_request}
 
-Answer primarily in Danish. If the learner wrote the instruction in Russian, you may explain difficult grammar in Russian while keeping Danish examples in Danish. Be practical and concise. If the image contains a grammar rule, explain it and give 3-5 useful examples. Do not claim the learner completed or mastered this topic just because an image was sent."""
+Answer primarily in Danish. If the learner wrote the instruction in Russian, you may explain difficult grammar in Russian while keeping Danish examples in Danish. Be practical and concise. If the image contains a grammar rule, explain it and give 3-5 useful examples. Start the answer with one short sentence that clearly names the main topic visible in the image. Do not claim the learner completed or mastered this topic just because an image was sent."""
+
+
+def _topic_from_analysis(result: str) -> str:
+    for line in result.splitlines():
+        cleaned = line.strip().lstrip("#*-• ").strip()
+        if cleaned:
+            return cleaned[:160]
+    return "dansk grammatik"
 
 
 async def image_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -89,7 +97,28 @@ async def image_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         learner_context = await telegram_bot._learner_context(conversation_id)
         instruction = _vision_instruction(message.caption, learner_context)
         result = await analyze_image_file(temp_path, instruction=instruction)
-        await telegram_bot._reply_text(update, result[:4000])
+        topic = _topic_from_analysis(result)
+
+        await telegram_bot._study_call(
+            "set_current_step",
+            "telegram",
+            conversation_id,
+            "grammar",
+            topic,
+            "Lav interaktive øvelser om emnet",
+        )
+
+        keyboard = InlineKeyboardMarkup(
+            [
+                [
+                    InlineKeyboardButton(
+                        "🧩 Упражнения по этой теме",
+                        callback_data="topicquiz:current",
+                    )
+                ]
+            ]
+        )
+        await telegram_bot._reply_text(update, result[:4000], keyboard)
     except Exception:
         logger.exception("Telegram image analysis failed")
         await telegram_bot._reply_text(

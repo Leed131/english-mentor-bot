@@ -40,9 +40,11 @@ async def run_bots() -> None:
     from study_memory import initialize_study_memory
     from telegram_bot import run_telegram_bot
     from telegram_image_support import install_telegram_image_support
+    from topic_quiz_support import install_topic_quiz_support
 
     await asyncio.to_thread(initialize_study_memory)
     install_telegram_image_support()
+    install_topic_quiz_support()
 
     tasks = {
         asyncio.create_task(run_discord_bot(), name="Discord bot"),

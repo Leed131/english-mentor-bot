@@ -7,9 +7,9 @@ from speech import transcribe_audio, generate_speech
 from grammar import correct_grammar
 from tasks import generate_task
 from memory import log_interaction
-from langchain_community.chat_models import ChatOpenAI
-from langchain.memory import ConversationBufferMemory
-from langchain.chains import ConversationChain
+from langchain_openai import ChatOpenAI
+from langchain_classic.memory import ConversationBufferMemory
+from langchain_classic.chains import ConversationChain
 
 openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 TOKEN = os.getenv("DISCORD_TOKEN")

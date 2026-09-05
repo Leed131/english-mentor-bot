@@ -119,7 +119,9 @@ async def _start_topic_quiz(update: Update, topic: str) -> None:
         )
         return
 
-    await telegram_bot._present(
+    # Always send quiz questions as new messages. Do not edit/replace the image
+    # analysis or any earlier quiz messages, so the learner can review them later.
+    await telegram_bot._reply_text(
         update,
         _quiz_text(quiz, f"🧩 Øvelser: {topic}"),
         _quiz_markup(quiz),
@@ -161,9 +163,16 @@ async def topic_quiz_callback(
             user_id,
         )
         if quiz is None:
-            await telegram_bot._present(update, "Denne øvelse er afsluttet.")
+            await telegram_bot._reply_text(update, "Denne øvelse er afsluttet.")
             return
-        await telegram_bot._present(update, _quiz_text(quiz), _quiz_markup(quiz))
+
+        # Send the next question as a new chat message. The feedback message
+        # containing the Next button remains visible in the conversation.
+        await telegram_bot._reply_text(
+            update,
+            _quiz_text(quiz),
+            _quiz_markup(quiz),
+        )
 
 
 async def topic_quiz_answer_callback(
@@ -205,7 +214,7 @@ async def topic_quiz_answer_callback(
     )
 
     if result.state in {"missing", "invalid"}:
-        await telegram_bot._present(update, "Denne øvelse er ikke længere aktiv.")
+        await telegram_bot._reply_text(update, "Denne øvelse er ikke længere aktiv.")
         raise ApplicationHandlerStop
 
     if result.state == "duplicate":
@@ -213,20 +222,16 @@ async def topic_quiz_answer_callback(
             keyboard = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("➡️ Næste spørgsmål", callback_data=f"topicquiz:next:{quiz_id}")]]
             )
-            await telegram_bot._present(
+            await telegram_bot._reply_text(
                 update,
                 "Dette svar er allerede registreret.",
                 keyboard,
             )
         else:
-            await telegram_bot._present(update, "Øvelsen er allerede afsluttet.")
+            await telegram_bot._reply_text(update, "Øvelsen er allerede afsluttet.")
         raise ApplicationHandlerStop
 
-    if result.was_correct:
-        feedback = "✅ Korrekt"
-    else:
-        feedback = "❌ Forkert"
-
+    feedback = "✅ Korrekt" if result.was_correct else "❌ Forkert"
     if result.explanation:
         feedback += f"\n\n{result.explanation}"
 
@@ -236,12 +241,15 @@ async def topic_quiz_answer_callback(
             f"\n✅ Rigtige svar: {result.correct_answers}"
             f"\n❌ Forkerte svar: {result.wrong_answers}"
         )
-        await telegram_bot._present(update, feedback, telegram_bot._main_menu())
+        # Feedback is a separate message so the final question remains visible.
+        await telegram_bot._reply_text(update, feedback, telegram_bot._main_menu())
     else:
         keyboard = InlineKeyboardMarkup(
             [[InlineKeyboardButton("➡️ Næste spørgsmål", callback_data=f"topicquiz:next:{quiz_id}")]]
         )
-        await telegram_bot._present(update, feedback, keyboard)
+        # Never replace the original question. Keep both the question and this
+        # result message in history for later review or follow-up questions.
+        await telegram_bot._reply_text(update, feedback, keyboard)
 
     raise ApplicationHandlerStop
 

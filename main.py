@@ -17,6 +17,19 @@ def validate_environment() -> None:
         raise RuntimeError(f"Missing required environment variables: {names}")
 
 
+def configure_logging() -> None:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+    # Telegram Bot API URLs contain the bot token, so suppress routine HTTP
+    # request logging and verbose Telegram client logs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
+
 async def run_bots() -> None:
     validate_environment()
 
@@ -51,13 +64,7 @@ async def run_bots() -> None:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
-    logging.getLogger("httpx").setLevel(logging.WARNING)
-    logging.getLogger("telegram").setLevel(logging.WARNING)
-    logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+    configure_logging()
 
     try:
         asyncio.run(run_bots())

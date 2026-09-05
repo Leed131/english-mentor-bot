@@ -41,35 +41,59 @@ def _command_text(context: ContextTypes.DEFAULT_TYPE) -> str:
     return " ".join(context.args).strip()
 
 
-async def _mentor_reply(user_id: int, prompt: str) -> str:
-    return await telegram_mentor.reply(user_id, prompt)
+def _conversation_id(update: Update) -> str | None:
+    if update.effective_user is not None:
+        return str(update.effective_user.id)
+
+    message = update.effective_message
+    if message is not None and message.sender_chat is not None:
+        return f"channel:{message.sender_chat.id}"
+
+    if update.effective_chat is not None:
+        return f"chat:{update.effective_chat.id}"
+
+    return None
+
+
+async def _reply_text(update: Update, text: str) -> None:
+    message = update.effective_message
+    if message is None:
+        return
+
+    text = text[:4000]
+    if update.channel_post is not None:
+        await message.get_bot().send_message(chat_id=message.chat_id, text=text)
+    else:
+        await message.reply_text(text)
+
+
+async def _mentor_reply(conversation_id: str, prompt: str) -> str:
+    return await telegram_mentor.reply(conversation_id, prompt)
 
 
 async def _send_mentor_reply(update: Update, prompt: str) -> None:
-    message = update.effective_message
-    user = update.effective_user
-    if message is None or user is None:
+    conversation_id = _conversation_id(update)
+    if update.effective_message is None or conversation_id is None:
+        logger.warning("Ignored Telegram update without a chat identity")
         return
 
     try:
-        reply = await _mentor_reply(user.id, prompt)
+        reply = await _mentor_reply(conversation_id, prompt)
     except Exception:
         logger.exception("Telegram mentor request failed")
         reply = "Beklager, jeg kunne ikke svare lige nu. Prøv igen om lidt."
 
-    await message.reply_text(reply[:4000])
+    await _reply_text(update, reply)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
-    if update.effective_message:
-        await update.effective_message.reply_text(START_TEXT)
+    await _reply_text(update, START_TEXT)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
-    if update.effective_message:
-        await update.effective_message.reply_text(HELP_TEXT)
+    await _reply_text(update, HELP_TEXT)
 
 
 async def exercise_command(
@@ -90,11 +114,11 @@ async def grammar_command(
 ) -> None:
     phrase = _command_text(context)
     if not phrase:
-        if update.effective_message:
-            await update.effective_message.reply_text(
-                "Skriv en dansk sætning efter kommandoen, fx: "
-                "/grammar Jeg har boet her siden to år"
-            )
+        await _reply_text(
+            update,
+            "Skriv en dansk sætning efter kommandoen, fx: "
+            "/grammar Jeg har boet her siden to år",
+        )
         return
 
     await _send_mentor_reply(
@@ -111,10 +135,10 @@ async def translate_command(
 ) -> None:
     text = _command_text(context)
     if not text:
-        if update.effective_message:
-            await update.effective_message.reply_text(
-                "Tilføj teksten efter kommandoen: /translate <tekst>"
-            )
+        await _reply_text(
+            update,
+            "Tilføj teksten efter kommandoen: /translate <tekst>",
+        )
         return
 
     await _send_mentor_reply(
@@ -177,8 +201,9 @@ def _audio_suffix(update: Update) -> str:
 
 async def audio_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
-    user = update.effective_user
-    if message is None or user is None:
+    conversation_id = _conversation_id(update)
+    if message is None or conversation_id is None:
+        logger.warning("Ignored Telegram audio update without a chat identity")
         return
 
     telegram_file = None
@@ -204,24 +229,28 @@ async def audio_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
         await telegram_file.download_to_drive(custom_path=temp_path)
         transcript = await transcribe_audio_file(temp_path, language="da")
-        await message.reply_text(f"🎧 Jeg hørte:\n{transcript[:3500]}")
+        await _reply_text(update, f"🎧 Jeg hørte:\n{transcript[:3500]}")
 
-        reply = await _mentor_reply(user.id, transcript)
-        await message.reply_text(f"🇩🇰 {reply[:3900]}")
+        reply = await _mentor_reply(conversation_id, transcript)
+        await _reply_text(update, f"🇩🇰 {reply[:3900]}")
 
-        try:
-            voice_path = await generate_speech(reply)
-            with open(voice_path, "rb") as voice_file:
-                await message.reply_audio(
-                    audio=voice_file,
-                    title="Dansk svar",
-                )
-        except Exception:
-            logger.exception("Telegram Danish TTS failed")
+        # Voice/audio responses are only sent in normal chats. For channel
+        # posts, keep the response as a text post to avoid reply-context issues.
+        if update.channel_post is None:
+            try:
+                voice_path = await generate_speech(reply)
+                with open(voice_path, "rb") as voice_file:
+                    await message.reply_audio(
+                        audio=voice_file,
+                        title="Dansk svar",
+                    )
+            except Exception:
+                logger.exception("Telegram Danish TTS failed")
     except Exception:
         logger.exception("Telegram audio processing failed")
-        await message.reply_text(
-            "Jeg kunne ikke forstå lydoptagelsen. Prøv igen med en kort og tydelig talebesked."
+        await _reply_text(
+            update,
+            "Jeg kunne ikke forstå lydoptagelsen. Prøv igen med en kort og tydelig talebesked.",
         )
     finally:
         for path in (temp_path, voice_path):
@@ -249,9 +278,7 @@ def build_telegram_application(token: str) -> Application:
     application.add_handler(CommandHandler("translate", translate_command))
     application.add_handler(CommandHandler("words", words_command))
     application.add_handler(MessageHandler(filters.VOICE | filters.AUDIO, audio_message))
-    application.add_handler(
-        MessageHandler(filters.Document.AUDIO, audio_message)
-    )
+    application.add_handler(MessageHandler(filters.Document.AUDIO, audio_message))
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
     application.add_error_handler(error_handler)
     return application

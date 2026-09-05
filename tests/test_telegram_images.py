@@ -6,6 +6,7 @@ from telegram.ext import MessageHandler
 from telegram_image_support import (
     _image_file_id,
     _vision_instruction,
+    image_message,
     install_telegram_image_support,
 )
 
@@ -46,7 +47,13 @@ class TelegramImageSupportTests(unittest.TestCase):
             install_telegram_image_support()
             application = telegram_bot.build_telegram_application("123:TEST")
             handlers = application.handlers[0]
-            self.assertTrue(any(isinstance(handler, MessageHandler) for handler in handlers))
+            self.assertTrue(
+                any(
+                    isinstance(handler, MessageHandler)
+                    and handler.callback is image_message
+                    for handler in handlers
+                )
+            )
         finally:
             telegram_bot.build_telegram_application = original_builder
             if hasattr(telegram_bot, "_image_support_installed"):

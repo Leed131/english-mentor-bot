@@ -25,11 +25,19 @@ def _get_client() -> AsyncOpenAI:
 
 
 def _vision_model() -> str:
-    return (
-        os.getenv("OPENAI_VISION_MODEL")
-        or os.getenv("OPENAI_MODEL")
-        or "gpt-4o-mini"
-    )
+    """Use a dedicated stronger model for images unless explicitly overridden."""
+    return os.getenv("OPENAI_VISION_MODEL") or "gpt-4o"
+
+
+VISION_SYSTEM_PROMPT = """
+You are a careful vision assistant for language-learning material.
+Actually inspect the attached image before answering. Read headings, tables,
+examples, handwritten notes, and small printed text when they are legible.
+If the image clearly contains a topic, do not ask the user which topic they
+mean. Identify the topic from the image and answer the request directly.
+If some text is too blurry to read reliably, say which part is unclear instead
+of inventing text.
+""".strip()
 
 
 async def recognize_text_from_image(url: str) -> str:
@@ -37,21 +45,25 @@ async def recognize_text_from_image(url: str) -> str:
     response = await _get_client().chat.completions.create(
         model=_vision_model(),
         messages=[
+            {"role": "system", "content": VISION_SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": [
-                    {"type": "image_url", "image_url": {"url": url}},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": url, "detail": "high"},
+                    },
                     {
                         "type": "text",
                         "text": (
-                            "Please extract all readable text from this image and "
-                            "return it faithfully."
+                            "Extract all readable text from this image faithfully. "
+                            "Preserve headings and examples where possible."
                         ),
                     },
                 ],
-            }
+            },
         ],
-        max_tokens=1200,
+        max_tokens=1600,
     )
     content = response.choices[0].message.content
     if not content:
@@ -80,29 +92,30 @@ async def analyze_image_file(
     user_instruction = (instruction or "").strip()
     if not user_instruction:
         user_instruction = (
-            "Analyze the image as Danish learning material. Identify the topic, "
-            "read the relevant text, explain the important points, and give a few "
-            "clear Danish examples."
+            "Analyze the image as Danish learning material. Identify the exact "
+            "topic from the visible text, explain the important points, and give "
+            "a few clear Danish examples."
         )
 
     response = await _get_client().chat.completions.create(
         model=_vision_model(),
         messages=[
+            {"role": "system", "content": VISION_SYSTEM_PROMPT},
             {
                 "role": "user",
                 "content": [
                     {
+                        "type": "image_url",
+                        "image_url": {"url": data_url, "detail": "high"},
+                    },
+                    {
                         "type": "text",
                         "text": user_instruction,
                     },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": data_url},
-                    },
                 ],
-            }
+            },
         ],
-        max_tokens=1800,
+        max_tokens=2200,
     )
     content = response.choices[0].message.content
     if not content:

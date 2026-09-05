@@ -111,7 +111,9 @@ def install_telegram_image_support() -> None:
     if getattr(telegram_bot, "_image_support_installed", False):
         return
 
-    original_builder = telegram_bot.build_telegram_application
+    original_builder = getattr(telegram_bot, "build_telegram_application", None)
+    if original_builder is None:
+        return
 
     def build_with_images(token: str):
         application = original_builder(token)

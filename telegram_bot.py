@@ -36,31 +36,55 @@ def _command_text(context: ContextTypes.DEFAULT_TYPE) -> str:
     return " ".join(context.args).strip()
 
 
-async def _send_mentor_reply(update: Update, prompt: str) -> None:
+def _conversation_id(update: Update) -> str | None:
+    if update.effective_user is not None:
+        return str(update.effective_user.id)
+
     message = update.effective_message
-    user = update.effective_user
-    if message is None or user is None:
+    if message is not None and message.sender_chat is not None:
+        return f"channel:{message.sender_chat.id}"
+
+    if update.effective_chat is not None:
+        return f"chat:{update.effective_chat.id}"
+
+    return None
+
+
+async def _reply_text(update: Update, text: str) -> None:
+    message = update.effective_message
+    if message is None:
+        return
+
+    text = text[:4000]
+    if update.channel_post is not None:
+        await message.get_bot().send_message(chat_id=message.chat_id, text=text)
+    else:
+        await message.reply_text(text)
+
+
+async def _send_mentor_reply(update: Update, prompt: str) -> None:
+    conversation_id = _conversation_id(update)
+    if update.effective_message is None or conversation_id is None:
+        logger.warning("Ignored Telegram text update without a chat identity")
         return
 
     try:
-        reply = await telegram_mentor.reply(user.id, prompt)
+        reply = await telegram_mentor.reply(conversation_id, prompt)
     except Exception:
         logger.exception("Telegram mentor request failed")
         reply = "Beklager, jeg kunne ikke svare lige nu. Prøv igen om lidt."
 
-    await message.reply_text(reply[:4000])
+    await _reply_text(update, reply)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
-    if update.effective_message:
-        await update.effective_message.reply_text(START_TEXT)
+    await _reply_text(update, START_TEXT)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
-    if update.effective_message:
-        await update.effective_message.reply_text(HELP_TEXT)
+    await _reply_text(update, HELP_TEXT)
 
 
 async def exercise_command(
@@ -81,11 +105,11 @@ async def grammar_command(
 ) -> None:
     phrase = _command_text(context)
     if not phrase:
-        if update.effective_message:
-            await update.effective_message.reply_text(
-                "Skriv en dansk sætning efter kommandoen, fx: "
-                "/grammar Jeg har boet her siden to år"
-            )
+        await _reply_text(
+            update,
+            "Skriv en dansk sætning efter kommandoen, fx: "
+            "/grammar Jeg har boet her siden to år",
+        )
         return
 
     await _send_mentor_reply(
@@ -102,10 +126,10 @@ async def translate_command(
 ) -> None:
     text = _command_text(context)
     if not text:
-        if update.effective_message:
-            await update.effective_message.reply_text(
-                "Tilføj teksten efter kommandoen: /translate <tekst>"
-            )
+        await _reply_text(
+            update,
+            "Tilføj teksten efter kommandoen: /translate <tekst>",
+        )
         return
 
     await _send_mentor_reply(

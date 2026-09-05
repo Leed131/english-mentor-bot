@@ -1,10 +1,11 @@
 import asyncio
+import logging
 import os
 import sys
 import types
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import main
 from mentor import DANISH_TUTOR_PROMPT, ENGLISH_TUTOR_PROMPT, LanguageMentor
@@ -81,6 +82,11 @@ class StartupTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(discord_started.is_set())
         self.assertTrue(telegram_started.is_set())
 
+    def test_http_client_info_logs_are_disabled(self):
+        main.configure_logging()
+        self.assertEqual(logging.getLogger("httpx").level, logging.WARNING)
+        self.assertEqual(logging.getLogger("httpcore").level, logging.WARNING)
+
 
 class TelegramConfigurationTests(unittest.TestCase):
     def test_all_commands_are_registered(self):
@@ -100,6 +106,32 @@ class TelegramConfigurationTests(unittest.TestCase):
             commands,
             {"start", "help", "exercise", "grammar", "translate", "words"},
         )
+
+
+class TelegramChannelTests(unittest.IsolatedAsyncioTestCase):
+    async def test_channel_post_uses_channel_identity_and_sends_a_post(self):
+        from telegram_bot import telegram_mentor, text_message
+
+        bot = SimpleNamespace(send_message=AsyncMock())
+        message = SimpleNamespace(
+            chat_id=-10042,
+            sender_chat=SimpleNamespace(id=-10042),
+            text="Hej",
+            get_bot=lambda: bot,
+        )
+        update = SimpleNamespace(
+            channel_post=message,
+            effective_chat=SimpleNamespace(id=-10042),
+            effective_message=message,
+            effective_user=None,
+        )
+
+        reply_mock = AsyncMock(return_value="Hej!")
+        with patch.object(telegram_mentor, "reply", reply_mock):
+            await text_message(update, None)
+
+        reply_mock.assert_awaited_once_with("channel:-10042", "Hej")
+        bot.send_message.assert_awaited_once_with(chat_id=-10042, text="Hej!")
 
 
 if __name__ == "__main__":

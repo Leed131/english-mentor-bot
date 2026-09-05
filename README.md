@@ -5,7 +5,8 @@ One Python process runs two language-learning bots concurrently:
 - Discord bot — English mentor with chat, exercises, grammar correction,
   image recognition, speech-to-text, text-to-speech, and interaction logging.
 - Telegram bot — Danish mentor with conversation practice, corrections,
-  translation, exercises, and vocabulary training.
+  translation, exercises, and vocabulary training. It can answer private
+  messages and channel posts when it has permission to post in the channel.
 
 Conversation history is stored separately in memory for every platform and
 user (`discord:<user_id>` and `telegram:<user_id>`). It resets when the process

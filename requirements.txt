@@ -1,8 +1,9 @@
 discord.py
-openai>=1.0.0
+openai==3.8.0
 aiohttp
 requests
 pydub
-langchain
-langchain-community
-langchain-openai
+langchain==1.4.0
+langchain-community==0.4.2
+langchain-classic==1.0.8
+langchain-openai==1.6.0

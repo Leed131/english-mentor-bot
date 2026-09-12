@@ -19,10 +19,19 @@ logs continue to be written to `user_data/`.
 The Telegram mentor has an inline study menu with these sections:
 
 - 🎧 Audio
+- 🗣️ DU3 Opgave 2 — audio-first speaking practice for Modul 3
 - 🧪 Tests
 - 📚 Grammar
 - ✍️ Writing
 - 🔤 Verbs
+
+The DU3 Opgave 2 mode currently includes five prepared themes: *At lære dansk*,
+*At møde nye venner*, *Bolig*, *Grønne vaner*, and *Sunde og usunde vaner*.
+For each theme the learner practices four paired situations by asking a
+question, hearing a short spoken answer, and answering a question back. The
+mode then continues to an individual examiner-style part with four questions.
+Important Danish mistakes are corrected briefly, and both voice messages and
+typed answers are accepted while the session is active.
 
 `/continue` reads the stored profile and resumes an unfinished quiz or shows the
 last topic and next step. `/progress`, `/history`, and `/review` are also built

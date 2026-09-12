@@ -37,6 +37,7 @@ async def run_bots() -> None:
     validate_environment()
 
     from discord_bot import run_discord_bot
+    from du3_opgave2_support import install_du3_opgave2_support
     from study_memory import initialize_study_memory
     from telegram_bot import run_telegram_bot
     from telegram_image_support import install_telegram_image_support
@@ -45,6 +46,7 @@ async def run_bots() -> None:
     await asyncio.to_thread(initialize_study_memory)
     install_telegram_image_support()
     install_topic_quiz_support()
+    install_du3_opgave2_support()
 
     tasks = {
         asyncio.create_task(run_discord_bot(), name="Discord bot"),

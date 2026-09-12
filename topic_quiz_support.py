@@ -18,6 +18,9 @@ from study_memory import QuizAnswer, QuizSnapshot, get_study_memory
 
 logger = logging.getLogger(__name__)
 
+QUIZ_BLOCK_SIZE = 5
+RECENT_QUESTION_LIMIT = 30
+
 
 def _quiz_markup(quiz: QuizSnapshot) -> InlineKeyboardMarkup:
     buttons = [
@@ -33,6 +36,20 @@ def _quiz_markup(quiz: QuizSnapshot) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(buttons)
 
 
+def _continuation_markup(quiz_id: int) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    "➡️ Ещё 5 по теме",
+                    callback_data=f"topicquiz:more:{quiz_id}",
+                )
+            ],
+            [InlineKeyboardButton("⬅️ Studiemenu", callback_data="study:menu")],
+        ]
+    )
+
+
 def _quiz_text(quiz: QuizSnapshot, prefix: str | None = None) -> str:
     parts: list[str] = []
     if prefix:
@@ -44,6 +61,60 @@ def _quiz_text(quiz: QuizSnapshot, prefix: str | None = None) -> str:
         ]
     )
     return "\n".join(parts)
+
+
+def _recent_topic_questions_sync(
+    user_id: str,
+    topic: str,
+    limit: int = RECENT_QUESTION_LIMIT,
+) -> list[str]:
+    memory = get_study_memory()
+    with memory.database.session() as session:
+        profile = memory._profile(session, "telegram", user_id)
+        quizzes = session.scalars(
+            select(QuizSession)
+            .where(
+                QuizSession.profile_id == profile.id,
+                QuizSession.topic == topic[:160],
+            )
+            .order_by(QuizSession.id.desc())
+            .limit(max(1, (limit + QUIZ_BLOCK_SIZE - 1) // QUIZ_BLOCK_SIZE + 2))
+        ).all()
+
+        seen: list[str] = []
+        seen_normalized: set[str] = set()
+        for quiz in quizzes:
+            try:
+                questions = json.loads(quiz.questions_json)
+            except (TypeError, json.JSONDecodeError):
+                continue
+            if not isinstance(questions, list):
+                continue
+            for question in questions:
+                if not isinstance(question, dict):
+                    continue
+                text = str(question.get("question", "")).strip()
+                normalized = " ".join(text.lower().split())
+                if not text or normalized in seen_normalized:
+                    continue
+                seen.append(text)
+                seen_normalized.add(normalized)
+                if len(seen) >= limit:
+                    return seen
+        return seen
+
+
+def _quiz_topic_sync(user_id: str, quiz_id: int) -> str | None:
+    memory = get_study_memory()
+    with memory.database.session() as session:
+        profile = memory._profile(session, "telegram", user_id)
+        quiz = session.scalar(
+            select(QuizSession).where(
+                QuizSession.id == quiz_id,
+                QuizSession.profile_id == profile.id,
+            )
+        )
+        return quiz.topic if quiz is not None else None
 
 
 def _start_custom_quiz_sync(
@@ -103,8 +174,21 @@ async def _start_topic_quiz(update: Update, topic: str) -> None:
         topic = profile.current_topic or "dansk grammatik"
 
     try:
-        learner_context = await telegram_bot._learner_context(user_id)
-        questions = await generate_topic_quiz(topic, learner_context, count=5)
+        learner_context, recent_questions = await asyncio.gather(
+            telegram_bot._learner_context(user_id),
+            asyncio.to_thread(
+                _recent_topic_questions_sync,
+                user_id,
+                topic,
+                RECENT_QUESTION_LIMIT,
+            ),
+        )
+        questions = await generate_topic_quiz(
+            topic,
+            learner_context,
+            count=QUIZ_BLOCK_SIZE,
+            avoid_questions=recent_questions,
+        )
         quiz = await asyncio.to_thread(
             _start_custom_quiz_sync,
             user_id,
@@ -151,6 +235,24 @@ async def topic_quiz_callback(
     data = query.data
     if data == "topicquiz:current":
         await _start_topic_quiz(update, "")
+        return
+
+    if data.startswith("topicquiz:more:"):
+        user_id = telegram_bot._study_user_id(update)
+        if user_id is None:
+            return
+        try:
+            quiz_id = int(data.rsplit(":", 1)[-1])
+        except ValueError:
+            return
+        topic = await asyncio.to_thread(_quiz_topic_sync, user_id, quiz_id)
+        if not topic:
+            await telegram_bot._reply_text(
+                update,
+                "Jeg kunne ikke finde emnet til den afsluttede blok.",
+            )
+            return
+        await _start_topic_quiz(update, topic)
         return
 
     if data.startswith("topicquiz:next:"):
@@ -220,7 +322,14 @@ async def topic_quiz_answer_callback(
     if result.state == "duplicate":
         if result.next_question is not None:
             keyboard = InlineKeyboardMarkup(
-                [[InlineKeyboardButton("➡️ Næste spørgsmål", callback_data=f"topicquiz:next:{quiz_id}")]]
+                [
+                    [
+                        InlineKeyboardButton(
+                            "➡️ Næste spørgsmål",
+                            callback_data=f"topicquiz:next:{quiz_id}",
+                        )
+                    ]
+                ]
             )
             await telegram_bot._reply_text(
                 update,
@@ -228,7 +337,11 @@ async def topic_quiz_answer_callback(
                 keyboard,
             )
         else:
-            await telegram_bot._reply_text(update, "Øvelsen er allerede afsluttet.")
+            await telegram_bot._reply_text(
+                update,
+                "Denne blok er allerede afsluttet. Du kan fortsætte med 5 nye opgaver.",
+                _continuation_markup(quiz_id),
+            )
         raise ApplicationHandlerStop
 
     feedback = "✅ Korrekt" if result.was_correct else "❌ Forkert"
@@ -237,15 +350,28 @@ async def topic_quiz_answer_callback(
 
     if result.state == "complete":
         feedback += (
-            "\n\nFærdig!"
+            "\n\nBlokken er færdig!"
             f"\n✅ Rigtige svar: {result.correct_answers}"
             f"\n❌ Forkerte svar: {result.wrong_answers}"
+            "\n\nVil du fortsætte med 5 nye opgaver om det samme emne?"
         )
-        # Feedback is a separate message so the final question remains visible.
-        await telegram_bot._reply_text(update, feedback, telegram_bot._main_menu())
+        # Keep the same topic available indefinitely in fresh five-question
+        # blocks. Recent questions are passed to the generator to reduce repeats.
+        await telegram_bot._reply_text(
+            update,
+            feedback,
+            _continuation_markup(quiz_id),
+        )
     else:
         keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton("➡️ Næste spørgsmål", callback_data=f"topicquiz:next:{quiz_id}")]]
+            [
+                [
+                    InlineKeyboardButton(
+                        "➡️ Næste spørgsmål",
+                        callback_data=f"topicquiz:next:{quiz_id}",
+                    )
+                ]
+            ]
         )
         # Never replace the original question. Keep both the question and this
         # result message in history for later review or follow-up questions.

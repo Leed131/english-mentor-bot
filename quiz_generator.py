@@ -78,9 +78,18 @@ async def generate_topic_quiz(
     learner_context: str,
     *,
     count: int = 5,
+    avoid_questions: list[str] | tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
     count = max(3, min(count, 10))
     normalized_topic = topic.strip() or "dansk grammatik"
+    avoided = [
+        str(question).strip()
+        for question in (avoid_questions or [])
+        if str(question).strip()
+    ][:40]
+    avoid_block = "\n".join(f"- {question}" for question in avoided)
+    if not avoid_block:
+        avoid_block = "(none)"
 
     prompt = f"""Create {count} short multiple-choice exercises for a learner of Danish.
 
@@ -89,6 +98,9 @@ TOPIC:
 
 LEARNER CONTEXT:
 {learner_context or 'Level A1. No other saved context.'}
+
+QUESTIONS ALREADY USED RECENTLY:
+{avoid_block}
 
 Return ONLY a JSON object with this exact shape:
 {{
@@ -111,6 +123,8 @@ Rules:
 - Use 3 or 4 answer options per question.
 - Exactly one option must be correct.
 - Questions must test the supplied topic, not generic Danish.
+- Do not repeat or closely paraphrase questions listed under QUESTIONS ALREADY USED RECENTLY.
+- Vary vocabulary, sentence structure, and examples between batches.
 - Mix recognition and sentence-choice questions.
 - Keep each question compact enough for Telegram.
 - Do not include percentages, scores, markdown, or prose outside JSON.

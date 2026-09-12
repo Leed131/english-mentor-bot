@@ -33,6 +33,11 @@ mode then continues to an individual examiner-style part with four questions.
 Important Danish mistakes are corrected briefly, and both voice messages and
 typed answers are accepted while the session is active.
 
+Generated topic exercises stay in five-question blocks. After each completed
+block the learner can choose **Ещё 5 по теме** to continue the same topic for as
+many blocks as desired. The generator receives up to 30 recently used questions
+for that topic and is instructed to avoid repeats and close paraphrases.
+
 `/continue` reads the stored profile and resumes an unfinished quiz or shows the
 last topic and next step. `/progress`, `/history`, and `/review` are also built
 from stored records rather than guesses made by the language model.

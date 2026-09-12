@@ -153,6 +153,8 @@ class TelegramConfigurationTests(unittest.TestCase):
                 "start",
                 "help",
                 "learn",
+                "menu",
+                "opgave2",
                 "continue",
                 "progress",
                 "history",

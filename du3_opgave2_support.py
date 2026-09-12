@@ -529,7 +529,10 @@ def install_du3_opgave2_support() -> None:
     if getattr(telegram_bot, "_du3_opgave2_support_installed", False):
         return
 
-    original_main_menu = telegram_bot._main_menu
+    original_main_menu = getattr(telegram_bot, "_main_menu", None)
+    original_builder = getattr(telegram_bot, "build_telegram_application", None)
+    if original_main_menu is None or original_builder is None:
+        return
 
     def main_menu_with_du3() -> InlineKeyboardMarkup:
         original = original_main_menu()
@@ -546,8 +549,6 @@ def install_du3_opgave2_support() -> None:
         return InlineKeyboardMarkup(rows)
 
     telegram_bot._main_menu = main_menu_with_du3
-
-    original_builder = telegram_bot.build_telegram_application
 
     def build_with_du3(token: str):
         application = original_builder(token)

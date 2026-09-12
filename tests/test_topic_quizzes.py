@@ -1,7 +1,7 @@
 import unittest
 
 from quiz_generator import _validate_questions
-from topic_quiz_support import _quiz_text
+from topic_quiz_support import _continuation_markup, _quiz_text
 from study_memory import QuizSnapshot
 
 
@@ -36,6 +36,15 @@ class TopicQuizTests(unittest.TestCase):
         self.assertEqual(len(questions), 3)
         self.assertEqual(questions[0]["topic"], "ordstilling")
         self.assertIn("Jeg kommer ikke.", questions[0]["explanation"])
+
+    def test_continuation_markup_offers_another_five(self):
+        markup = _continuation_markup(42)
+        buttons = [button for row in markup.inline_keyboard for button in row]
+        labels = {button.text for button in buttons}
+        callbacks = {button.callback_data for button in buttons}
+
+        self.assertIn("➡️ Ещё 5 по теме", labels)
+        self.assertIn("topicquiz:more:42", callbacks)
 
     def test_quiz_text_has_position_without_percent(self):
         quiz = QuizSnapshot(

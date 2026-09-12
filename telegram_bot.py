@@ -42,6 +42,8 @@ HELP_TEXT = """Tilgængelige kommandoer:
 /start — start mentorbotten
 /help — vis denne hjælp
 /learn — åbn studiemenuen
+/menu — åbn studiemenuen
+/opgave2 — åbn DU3 Modul 3 Opgave 2
 /continue — fortsæt hvor du stoppede
 /progress — se fremskridt i din aktuelle plan
 /history — se emner og fejl fra tidligere
@@ -53,12 +55,21 @@ HELP_TEXT = """Tilgængelige kommandoer:
 /words [emne] — træn et lille sæt danske ord
 /verbs — åbn menuen for danske verber
 
-Du kan også sende en talebesked eller en lydfil på dansk."""
+Du kan også sende en talebesked eller en lydfil på dansk.
+Du kan skrive "menu" eller "меню" for at åbne studiemenuen og "opgave 2" for DU3-træning."""
 
 WRITING_TOPIC = "min dag"
 WRITING_NEXT_STEP = "submit_writing"
 AUDIO_TOPIC = "speaking and listening"
 AUDIO_NEXT_STEP = "send_voice_message"
+
+MENU_ALIASES = {"menu", "меню", "studiemenu", "study menu"}
+DU3_OPGAVE2_ALIASES = {
+    "opgave 2",
+    "opgave2",
+    "du3 opgave 2",
+    "du3 opgave2",
+}
 
 
 def _command_text(context: ContextTypes.DEFAULT_TYPE) -> str:
@@ -536,6 +547,29 @@ async def learn_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await _show_learn_menu(update)
 
 
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    del context
+    await _show_learn_menu(update)
+
+
+async def _show_du3_opgave2_menu(update: Update) -> None:
+    from du3_opgave2_support import _topic_menu
+
+    await _present(
+        update,
+        "🗣️ DU3 Modul 3 — Opgave 2\n\nVælg et emne til samtaletræning:",
+        _topic_menu(),
+    )
+
+
+async def opgave2_command(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+) -> None:
+    del context
+    await _show_du3_opgave2_menu(update)
+
+
 async def continue_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     del context
     await _show_continue(update)
@@ -716,6 +750,13 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     message = update.effective_message
     user_id = _study_user_id(update)
     if message and message.text and user_id:
+        shortcut = " ".join(message.text.strip().lower().split())
+        if shortcut in MENU_ALIASES:
+            await _show_learn_menu(update)
+            return
+        if shortcut in DU3_OPGAVE2_ALIASES:
+            await _show_du3_opgave2_menu(update)
+            return
         if await _handle_writing_submission(update, user_id, message.text):
             return
         await _send_mentor_reply(update, message.text)
@@ -1146,6 +1187,8 @@ def build_telegram_application(token: str) -> Application:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("learn", learn_command))
+    application.add_handler(CommandHandler("menu", menu_command))
+    application.add_handler(CommandHandler("opgave2", opgave2_command))
     application.add_handler(CommandHandler("continue", continue_command))
     application.add_handler(CommandHandler("progress", progress_command))
     application.add_handler(CommandHandler("history", history_command))

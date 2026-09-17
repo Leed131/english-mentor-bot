@@ -91,7 +91,9 @@ Open **Test → Dialoger — læsning**, or use `/dialogues`.
   button per gap, with immediate Russian explanations and translations of clues.
 - Generate original A2/B1 everyday dialogues about transport, shopping, housing,
   work, invitations or family, or enter your own topic. **En lignende opgave** generates
-  another dialogue on the same topic and avoids the 15 recent situations.
+  another dialogue on the same topic. Previously shown content is checked across the
+  full saved history, including older and unfinished attempts; relabelling options
+  or changing the heading does not make the same conversation new.
 - **Tilføj opgave** accepts text or a photo (up to 10 MB). Include the full
   conversation and six options. The bot shows an editable-by-resubmission preview;
   **Gem og start** saves it to that user's **Mine opgaver**.
@@ -105,7 +107,10 @@ seeing the proposed key, and checks Russian feedback in a separate call. Failed
 validation gets up to two repair attempts that receive the previous candidate and
 specific rejection feedback. The reviewer receives a speaker-labelled transcript,
 explicit gaps and both neighbouring lines, and must identify exactly one candidate
-per gap. Generation has a 60-second overall deadline; unusable tasks are not shown.
+per gap. If the generator and solver disagree on the key, a second blind solve
+with rotated option letters must confirm the solver before correcting the key and
+regenerating/rechecking its explanations. Prompts do not include concrete example
+keys that the model could copy. Generation has a 60-second overall deadline; unusable tasks are not shown.
 These model checks reduce
 ambiguity but are not a guarantee of linguistic accuracy. Typed answers are graded
 locally against the saved key, with no model-based grading. Imported handwritten
@@ -117,8 +122,9 @@ translations remain in Russian.
 
 If generation fails or times out, the six standard topics have hand-reviewed reserve
 exercises in `dialogue_examples.py`. These are clearly labelled as prepared exercises.
-Letters are shuffled without changing the answer mapping. If the reserve has already
-been seen, the bot explicitly calls it repetition. Custom topics without a matching
+Letters are shuffled without changing the answer mapping. Only unseen reserves may be served as a new task. If none remain, the bot offers
+retrying or choosing another topic rather than replaying an old task. Deliberate
+repetition remains available through Repetition. Custom topics without a matching
 reserve show a retry/choose-another-topic message. Imports never substitute a reserve
 for the learner's source. Database failures are reported separately from generation.
 

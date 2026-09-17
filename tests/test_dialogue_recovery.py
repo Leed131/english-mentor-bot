@@ -76,7 +76,7 @@ class ContextTests(unittest.TestCase):
             for _ in range(5):
                 data = reserve_dialogue(raw["topic"])
                 self.assertEqual([data["options"][a] for a in data["answers"]], raw["replies"])
-            self.assertEqual(reserve_dialogue(raw["topic"], [raw["situation"]])["situation"], raw["situation"])
+            self.assertIsNone(reserve_dialogue(raw["topic"], [raw["situation"]]))
         self.assertIsNone(reserve_dialogue("an unrelated custom topic"))
 
     def test_all_static_menus_are_danish_and_callbacks_unchanged(self):

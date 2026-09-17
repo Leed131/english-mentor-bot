@@ -2,65 +2,60 @@ import unittest
 
 from du3_opgave2_support import (
     TOPICS,
-    _individual_prompt,
-    _is_likely_question,
+    _feedback_prompt,
+    _individual_turn_text,
     _new_session,
-    _pair_answer_prompt,
+    _pair_turn_text,
 )
 
 
 class Du3Opgave2Tests(unittest.TestCase):
-    def test_all_topics_have_four_situations_and_individual_questions(self):
+    def test_all_topics_have_four_fixed_situations_and_questions(self):
         self.assertEqual(
             set(TOPICS),
             {"dansk", "venner", "bolig", "gron", "sund"},
         )
         for topic in TOPICS.values():
             self.assertEqual(len(topic.situations), 4)
+            self.assertEqual(len(topic.situation_questions), 4)
             self.assertGreaterEqual(len(topic.individual_questions), 3)
             self.assertLessEqual(len(topic.individual_questions), 5)
 
-    def test_new_session_starts_with_learner_question(self):
+    def test_new_session_starts_with_first_tester_question(self):
         session = _new_session("bolig")
         self.assertEqual(session["phase"], "pair")
         self.assertEqual(session["situation_index"], 0)
-        self.assertEqual(session["turn"], "learner_question")
+        self.assertEqual(session["question_index"], 0)
+        self.assertNotIn("turn", session)
 
-    def test_question_detection_works_without_question_mark(self):
-        self.assertTrue(_is_likely_question("Hvor vil du helst bo"))
-        self.assertTrue(_is_likely_question("Kan du lide at cykle"))
-        self.assertFalse(_is_likely_question("Jeg vil helst bo i byen"))
+    def test_pair_turn_has_clear_roles(self):
+        topic = TOPICS["venner"]
+        text = _pair_turn_text(topic, 0)
 
-    def test_last_pair_answer_transitions_to_del_2(self):
-        topic = TOPICS["gron"]
-        session = _new_session("gron")
-        session["situation_index"] = 3
-        session["turn"] = "learner_answer"
+        self.assertIn("Situation 1/4", text)
+        self.assertIn(topic.situations[0], text)
+        self.assertIn("🤖 Spørgsmål:", text)
+        self.assertIn(topic.situation_questions[0], text)
+        self.assertIn("🎙️ Din tur:", text)
 
-        prompt, starts_individual = _pair_answer_prompt(
-            topic,
-            session,
-            "Jeg prøver at undgå madspild.",
-        )
-
-        self.assertTrue(starts_individual)
-        self.assertIn("Del 2", prompt)
-        self.assertIn(topic.individual_questions[0], prompt)
-
-    def test_last_individual_question_finishes_exercise(self):
+    def test_individual_turn_has_one_fixed_question(self):
         topic = TOPICS["sund"]
-        session = _new_session("sund")
-        session["phase"] = "individual"
-        session["question_index"] = len(topic.individual_questions) - 1
+        text = _individual_turn_text(topic, 1)
 
-        prompt, is_last = _individual_prompt(
-            topic,
-            session,
-            "Jeg vil gerne dyrke mere motion.",
+        self.assertIn("Del 2", text)
+        self.assertIn("spørgsmål 2/4", text)
+        self.assertIn(topic.individual_questions[1], text)
+        self.assertIn("🎙️ Din tur:", text)
+
+    def test_feedback_prompt_forbids_new_questions(self):
+        prompt = _feedback_prompt(
+            "Hvor ofte dyrker du motion?",
+            "Jeg cykler fem dage om ugen.",
         )
 
-        self.assertTrue(is_last)
-        self.assertIn("Opgave 2 er færdig", prompt)
+        self.assertIn("Evaluate only this answer", prompt)
+        self.assertIn("Do not answer the question yourself", prompt)
+        self.assertIn("do not ask any new question", prompt)
 
 
 if __name__ == "__main__":

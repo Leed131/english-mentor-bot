@@ -25,6 +25,7 @@ SESSION_KEY = "du3_opgave2_session"
 class Du3Topic:
     title: str
     situations: tuple[str, str, str, str]
+    situation_questions: tuple[str, str, str, str]
     individual_questions: tuple[str, ...]
 
 
@@ -36,6 +37,12 @@ TOPICS: dict[str, Du3Topic] = {
             "få onlineundervisning",
             "lære dansk på arbejde",
             "lære dansk i fritiden",
+        ),
+        situation_questions=(
+            "Kan du lide at gå på sprogskole? Hvorfor?",
+            "Hvad synes du om onlineundervisning?",
+            "Lærer du dansk på arbejde? Hvordan?",
+            "Hvordan lærer du dansk i din fritid?",
         ),
         individual_questions=(
             "Hvordan kan du bedst lide at lære dansk? Hvorfor?",
@@ -52,6 +59,12 @@ TOPICS: dict[str, Du3Topic] = {
             "møde nye mennesker gennem sport",
             "møde nye mennesker online",
         ),
+        situation_questions=(
+            "Synes du, det er nemt at møde nye mennesker på arbejde? Hvorfor?",
+            "Kan du lide at møde nye mennesker til en fest? Hvorfor eller hvorfor ikke?",
+            "Synes du, sport er en god måde at få nye venner på? Hvorfor?",
+            "Hvad synes du om at møde nye mennesker online?",
+        ),
         individual_questions=(
             "Hvordan kan du bedst lide at møde nye venner? Hvorfor?",
             "Er det svært at møde nye venner som voksen? Hvorfor?",
@@ -66,6 +79,12 @@ TOPICS: dict[str, Du3Topic] = {
             "bo i et rækkehus",
             "bo i en moderne lejlighed",
             "bo i en ældre lejlighed i byen",
+        ),
+        situation_questions=(
+            "Vil du gerne bo i et hus på landet? Hvorfor eller hvorfor ikke?",
+            "Hvad synes du om at bo i et rækkehus?",
+            "Vil du helst bo i en moderne lejlighed? Hvorfor?",
+            "Hvad er en fordel ved at bo i en ældre lejlighed i byen?",
         ),
         individual_questions=(
             "Hvordan bor du nu?",
@@ -82,6 +101,12 @@ TOPICS: dict[str, Du3Topic] = {
             "spare på strøm og vand",
             "købe økologisk mad og undgå madspild",
         ),
+        situation_questions=(
+            "Bruger du mest cykel eller offentlig transport? Hvorfor?",
+            "Sorterer du affald derhjemme? Hvad sorterer du?",
+            "Hvordan sparer du på strøm og vand?",
+            "Køber du økologisk mad, eller prøver du at undgå madspild?",
+        ),
         individual_questions=(
             "Hvad gør du for miljøet i din hverdag?",
             "Hvilken grøn vane synes du er vigtigst? Hvorfor?",
@@ -97,6 +122,12 @@ TOPICS: dict[str, Du3Topic] = {
             "få nok søvn",
             "slik, fastfood, rygning eller alkohol",
         ),
+        situation_questions=(
+            "Hvad gør du for at spise sundt?",
+            "Hvor ofte dyrker du motion?",
+            "Hvor mange timer sover du normalt?",
+            "Har du nogle usunde vaner? Hvilke?",
+        ),
         individual_questions=(
             "Hvad gør du for at leve sundt?",
             "Hvilken sund vane synes du er vigtigst? Hvorfor?",
@@ -108,46 +139,30 @@ TOPICS: dict[str, Du3Topic] = {
 
 
 DU3_SYSTEM_PROMPT = """
-You are a Danish conversation partner and examiner for Danskuddannelse 3,
+You are a strict Danish speaking-practice evaluator for Danskuddannelse 3,
 Modul 3, mundtlig kommunikation, Opgave 2.
 
-The learner is practicing spoken Danish. Use simple, natural Danish suitable
-for DU3 Modul 3. Keep every spoken response short: normally 1-3 short
-sentences. Stay in Danish during the exercise.
+The exercise flow is controlled by the program. The program itself presents
+the situation and asks the learner a fixed question. Your only job is to give
+very short feedback on the learner's answer.
 
-Correct only an important mistake, and only one at a time. If a correction is
-useful, say: "Lille rettelse: ..." and then give a short natural version.
-Do not give grammar lectures. Do not use markdown, bullet points, headings,
-scores, percentages, or Russian in the exercise.
+Use simple natural Danish suitable for DU3 Modul 3.
+Never invent a new scenario. Never answer the question yourself. Never give
+topic advice. Never ask a follow-up question. Never move to another situation.
+Never use Russian, markdown, headings, scores, or percentages.
 
-In Del 1 you are a conversation partner. Answer the learner's question briefly,
-give a simple reason, and ask one short question back when instructed.
-In Del 2 you are the examiner. Ask one question at a time and wait for the
-learner's answer.
+Feedback rules:
+- If the learner answers the question understandably and there is no important
+  mistake, reply exactly: "Godt svar."
+- If there is one important Danish mistake, reply only:
+  "Lille rettelse: <short corrected version>."
+- If the learner does not answer the question, reply only:
+  "Svar på spørgsmålet: <repeat the fixed question>"
 
-Return only the words that should be spoken to the learner.
+Return only the feedback sentence.
 """.strip()
 
 du3_mentor = LanguageMentor("telegram-du3-opgave2", DU3_SYSTEM_PROMPT)
-
-QUESTION_STARTERS = (
-    "hvad",
-    "hvor",
-    "hvordan",
-    "hvorfor",
-    "hvem",
-    "hvilken",
-    "hvilket",
-    "hvilke",
-    "kan",
-    "skal",
-    "vil",
-    "er",
-    "har",
-    "synes",
-    "foretrækker",
-    "kunne",
-)
 
 
 def _topic_menu() -> InlineKeyboardMarkup:
@@ -185,7 +200,6 @@ def _new_session(topic_key: str) -> dict[str, Any]:
         "topic_key": topic_key,
         "phase": "pair",
         "situation_index": 0,
-        "turn": "learner_question",
         "question_index": 0,
     }
 
@@ -197,25 +211,33 @@ def _get_session(context: ContextTypes.DEFAULT_TYPE) -> dict[str, Any] | None:
     return None
 
 
-def _is_likely_question(text: str) -> bool:
-    cleaned = text.strip().lower()
-    if not cleaned:
-        return False
-    if cleaned.endswith("?"):
-        return True
-    first = cleaned.split(maxsplit=1)[0].strip(".,!?:;")
-    return first in QUESTION_STARTERS
+def _pair_turn_text(topic: Du3Topic, index: int) -> str:
+    return (
+        f"Situation {index + 1}/4: {topic.situations[index]}\n"
+        f"🤖 Spørgsmål: {topic.situation_questions[index]}\n"
+        "🎙️ Din tur: svar på spørgsmålet."
+    )
+
+
+def _individual_turn_text(topic: Du3Topic, index: int) -> str:
+    total = len(topic.individual_questions)
+    return (
+        f"Del 2 — spørgsmål {index + 1}/{total}\n"
+        f"🤖 Spørgsmål: {topic.individual_questions[index]}\n"
+        "🎙️ Din tur: svar på spørgsmålet."
+    )
 
 
 def _intro_text(topic: Du3Topic) -> str:
-    situation = topic.situations[0]
     return (
         f"🗣️ DU3 Modul 3 — Opgave 2\n"
         f"Emne: {topic.title}\n\n"
-        "Del 1: Vi taler om fire situationer. Du starter med at stille mig "
-        "et spørgsmål, jeg svarer og spørger dig tilbage.\n\n"
-        f"Situation 1/4: {situation}\n"
-        "🎙️ Stil mig et kort spørgsmål på dansk om denne situation."
+        "Sådan foregår træningen:\n"
+        "1. Jeg viser én situation.\n"
+        "2. Jeg stiller ét spørgsmål.\n"
+        "3. Du svarer med lyd eller tekst.\n"
+        "4. Jeg retter højst én vigtig fejl og går videre.\n\n"
+        + _pair_turn_text(topic, 0)
     )
 
 
@@ -223,95 +245,21 @@ def _intro_speech(topic: Du3Topic) -> str:
     return (
         f"Emnet er {topic.title}. Del 1. "
         f"Situation 1: {topic.situations[0]}. "
-        "Stil mig et kort spørgsmål på dansk om denne situation."
+        f"Spørgsmål: {topic.situation_questions[0]}"
     )
 
 
-def _pair_question_prompt(topic: Du3Topic, session: dict[str, Any], transcript: str) -> str:
-    index = int(session["situation_index"])
-    situation = topic.situations[index]
+def _feedback_prompt(question: str, transcript: str) -> str:
     return f"""
-Theme: {topic.title}
-Del 1, situation {index + 1}/4: {situation}
+Fixed question:
+{question}
 
-The learner was asked to ask you a question about this situation.
-Learner said: {transcript}
+Learner's spoken answer:
+{transcript}
 
-Respond as the conversation partner:
-1. Answer the learner's question briefly and naturally.
-2. Give one simple reason for your answer.
-3. If there is an important language mistake, include at most one short
-   "Lille rettelse: ..." sentence.
-4. End with one short question back to the learner about the SAME situation.
-Do not move to the next situation yet.
+Evaluate only this answer according to the system rules.
+Do not answer the question yourself and do not ask any new question.
 """.strip()
-
-
-def _pair_answer_prompt(
-    topic: Du3Topic,
-    session: dict[str, Any],
-    transcript: str,
-) -> tuple[str, bool]:
-    index = int(session["situation_index"])
-    is_last = index == len(topic.situations) - 1
-
-    if not is_last:
-        next_situation = topic.situations[index + 1]
-        ending = (
-            f'End exactly with: "Næste situation: {next_situation}. '
-            'Stil mig et spørgsmål om den."'
-        )
-    else:
-        first_question = topic.individual_questions[0]
-        ending = (
-            'Tell the learner that Del 2 starts now. '
-            f'End by asking exactly: "{first_question}"'
-        )
-
-    prompt = f"""
-Theme: {topic.title}
-Del 1, situation {index + 1}/4: {topic.situations[index]}
-
-You asked the learner a short question about this situation.
-Learner answered: {transcript}
-
-Acknowledge the answer briefly. If there is an important language mistake,
-include at most one short "Lille rettelse: ..." sentence.
-Do not ask another question about the current situation.
-{ending}
-""".strip()
-    return prompt, is_last
-
-
-def _individual_prompt(
-    topic: Du3Topic,
-    session: dict[str, Any],
-    transcript: str,
-) -> tuple[str, bool]:
-    index = int(session["question_index"])
-    current_question = topic.individual_questions[index]
-    is_last = index == len(topic.individual_questions) - 1
-
-    if is_last:
-        ending = (
-            'Finish the exercise with a short encouraging sentence such as '
-            '"Godt arbejde. Opgave 2 er færdig." Do not ask a new question.'
-        )
-    else:
-        next_question = topic.individual_questions[index + 1]
-        ending = f'End by asking exactly: "{next_question}"'
-
-    prompt = f"""
-Theme: {topic.title}
-Del 2, individual question {index + 1}/{len(topic.individual_questions)}.
-Current question: {current_question}
-Learner answered: {transcript}
-
-React briefly to the answer. If there is an important language mistake,
-include at most one short "Lille rettelse: ..." sentence.
-{ending}
-""".strip()
-    return prompt, is_last
 
 
 async def _du3_reply(
@@ -322,36 +270,45 @@ async def _du3_reply(
     topic = TOPICS[session["topic_key"]]
 
     if session["phase"] == "pair":
-        if session["turn"] == "learner_question":
-            if not _is_likely_question(transcript):
-                situation = topic.situations[int(session["situation_index"])]
-                return (
-                    "Prøv at stille mig et spørgsmål først. "
-                    f'For eksempel: "Hvad synes du om {situation}?"',
-                    False,
-                )
+        index = int(session["situation_index"])
+        question = topic.situation_questions[index]
+        feedback = await du3_mentor.reply(
+            conversation_id,
+            _feedback_prompt(question, transcript),
+        )
 
-            prompt = _pair_question_prompt(topic, session, transcript)
-            reply = await du3_mentor.reply(conversation_id, prompt)
-            session["turn"] = "learner_answer"
-            return reply, False
+        if index < len(topic.situations) - 1:
+            next_index = index + 1
+            session["situation_index"] = next_index
+            return (
+                f"{feedback}\n\n{_pair_turn_text(topic, next_index)}",
+                False,
+            )
 
-        prompt, starts_individual = _pair_answer_prompt(topic, session, transcript)
-        reply = await du3_mentor.reply(conversation_id, prompt)
-        if starts_individual:
-            session["phase"] = "individual"
-            session["question_index"] = 0
-            session["turn"] = "learner_answer"
-        else:
-            session["situation_index"] = int(session["situation_index"]) + 1
-            session["turn"] = "learner_question"
-        return reply, False
+        session["phase"] = "individual"
+        session["question_index"] = 0
+        return (
+            f"{feedback}\n\nDel 1 er færdig. Nu starter Del 2.\n\n"
+            f"{_individual_turn_text(topic, 0)}",
+            False,
+        )
 
-    prompt, is_last = _individual_prompt(topic, session, transcript)
-    reply = await du3_mentor.reply(conversation_id, prompt)
-    if not is_last:
-        session["question_index"] = int(session["question_index"]) + 1
-    return reply, is_last
+    index = int(session["question_index"])
+    question = topic.individual_questions[index]
+    feedback = await du3_mentor.reply(
+        conversation_id,
+        _feedback_prompt(question, transcript),
+    )
+
+    if index < len(topic.individual_questions) - 1:
+        next_index = index + 1
+        session["question_index"] = next_index
+        return (
+            f"{feedback}\n\n{_individual_turn_text(topic, next_index)}",
+            False,
+        )
+
+    return f"{feedback}\n\n✅ Opgave 2 er færdig.", True
 
 
 async def _send_spoken_reply(update: Update, text: str) -> None:
@@ -523,7 +480,7 @@ async def du3_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 def install_du3_opgave2_support() -> None:
-    """Attach an audio-first DU3 Modul 3 Opgave 2 practice mode."""
+    """Attach a strict audio-first DU3 Modul 3 Opgave 2 practice mode."""
     import telegram_bot
 
     if getattr(telegram_bot, "_du3_opgave2_support_installed", False):

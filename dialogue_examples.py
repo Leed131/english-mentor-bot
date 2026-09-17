@@ -110,9 +110,9 @@ def reserve_dialogue(topic, recent=()):
     normalized = topic.casefold()
     matches = [e for e in EXAMPLES if e["topic"].casefold() == normalized or any(a in normalized for a in e["aliases"])]
     available = [e for e in matches if e["situation"] not in recent]
-    if not matches:
+    if not available:
         return None
-    raw = random.SystemRandom().choice(available or matches)
+    raw = random.SystemRandom().choice(available)
     options = raw["replies"] + raw["distractors"]
     random.SystemRandom().shuffle(options)
     data = {k: raw[k] for k in ("topic", "situation", "speakers", "lines", "explanations")}

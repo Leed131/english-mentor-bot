@@ -11,7 +11,7 @@ from telegram.ext import (ApplicationHandlerStop, CallbackQueryHandler, CommandH
                           MessageHandler, filters)
 
 from database import DialogueSession
-from dialogue_generator import LETTERS, parse_answers, prepare_dialogue, validate_dialogue
+from dialogue_generator import dialogue_signature, LETTERS, parse_answers, prepare_dialogue, validate_dialogue
 from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,10 @@ def db_action(user_id, action, **args):
                 query = query.where(DialogueSession.custom.is_(True))
             elif action == "review":
                 query = query.where(DialogueSession.completed.is_(True), DialogueSession.score < 100)
-            rows = session.scalars(query.order_by(DialogueSession.id.desc()).limit(15)).all()
+            query = query.order_by(DialogueSession.id.desc())
+            if action != "recent":
+                query = query.limit(15)
+            rows = session.scalars(query).all()
             return [snapshot(r) for r in rows]
         if action == "pause":
             session.execute(sql_update(DialogueSession).where(
@@ -182,17 +185,17 @@ async def generate(update, user, topic, mode):
     recent = await db(user, "recent")
     situations = [r["data"]["situation"] for r in recent]
     try:
-        data = await asyncio.wait_for(prepare_dialogue(topic, situations), timeout=60)
+        data = await asyncio.wait_for(prepare_dialogue(topic, situations, avoid_dialogues=[r["data"] for r in recent]), timeout=60)
+        if dialogue_signature(data) in {dialogue_signature(r["data"]) for r in recent}:
+            raise ValueError("Previously shown dialogue")
     except Exception:
         logger.exception("Dialogue generation failed")
         from dialogue_examples import reserve_dialogue
         data = reserve_dialogue(topic, situations)
-        if data is None:
-            await send(update, "Jeg kunne ikke lave en entydig dialog lige nu. Prøv igen eller vælg et andet emne.", menu())
+        if data is None or dialogue_signature(data) in {dialogue_signature(r["data"]) for r in recent}:
+            await send(update, "Jeg kunne ikke lave en ny, kontrolleret dialog lige nu. Jeg gentager ikke den gamle. Prøv igen eller vælg et andet emne. Brug Repetition, hvis du vil øve den samme opgave.", menu())
             return
         notice = "Den nye dialog kunne ikke kontrolleres. Her er en gennemgået øvelse om samme emne."
-        if data["situation"] in situations:
-            notice += " Du har set den før; du kan bruge den til repetition."
         await send(update, notice)
     try:
         item = await db(user, "create", data=data, mode=mode)

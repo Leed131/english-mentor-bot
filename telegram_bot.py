@@ -152,33 +152,33 @@ def _main_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton("🎧 Аудио", callback_data="study:section:audio"),
-                InlineKeyboardButton("🧪 Тесты", callback_data="study:section:tests"),
+                InlineKeyboardButton("🎧 Lyd", callback_data="study:section:audio"),
+                InlineKeyboardButton("🧪 Test", callback_data="study:section:tests"),
             ],
             [
                 InlineKeyboardButton(
-                    "📚 Грамматика",
+                    "📚 Grammatik",
                     callback_data="study:section:grammar",
                 ),
                 InlineKeyboardButton(
-                    "✍️ Письмо",
+                    "✍️ Skrivning",
                     callback_data="study:section:writing",
                 ),
             ],
             [
-                InlineKeyboardButton("🔤 Глаголы", callback_data="study:verbs"),
-                InlineKeyboardButton("📊 Прогресс", callback_data="study:progress"),
+                InlineKeyboardButton("🔤 Verber", callback_data="study:verbs"),
+                InlineKeyboardButton("📊 Fremskridt", callback_data="study:progress"),
             ],
             [
-                InlineKeyboardButton("🔁 Повторить", callback_data="study:review"),
-                InlineKeyboardButton("▶️ Продолжить", callback_data="study:continue"),
+                InlineKeyboardButton("🔁 Repetition", callback_data="study:review"),
+                InlineKeyboardButton("▶️ Fortsæt", callback_data="study:continue"),
             ],
             [
                 InlineKeyboardButton(
-                    "🎯 Тренировка на сегодня",
+                    "🎯 Dagens øvelser",
                     callback_data="study:daily",
                 ),
-                InlineKeyboardButton("📖 Что мы прошли", callback_data="study:history"),
+                InlineKeyboardButton("📖 Det har vi lært", callback_data="study:history"),
             ],
         ]
     )
@@ -189,25 +189,25 @@ def _verb_menu() -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "📚 Учить новые",
+                    "📚 Lær nye",
                     callback_data="study:verb:learn",
                 ),
                 InlineKeyboardButton(
-                    "🔁 Повторить",
+                    "🔁 Repetition",
                     callback_data="study:verb:review",
                 ),
             ],
             [
                 InlineKeyboardButton(
-                    "✅ Закреплённые",
+                    "✅ Indlærte",
                     callback_data="study:verb:mastered",
                 ),
                 InlineKeyboardButton(
-                    "📊 Статистика",
+                    "📊 Statistik",
                     callback_data="study:verb:stats",
                 ),
             ],
-            [InlineKeyboardButton("⬅️ Учебное меню", callback_data="study:menu")],
+            [InlineKeyboardButton("⬅️ Studiemenu", callback_data="study:menu")],
         ]
     )
 
@@ -325,20 +325,20 @@ async def _show_progress(update: Update) -> None:
     report = format_progress_report(profile.current_level, percentages)
     if today["total"]:
         report += (
-            "\n\n✅ Сегодня выполнено"
-            f"\n🎧 Аудио: {today['audio']}"
-            f"\n🧪 Тесты: {today['tests']}"
-            f"\n📚 Грамматика: {today['grammar']}"
-            f"\n✍️ Письмо: {today['writing']}"
-            f"\n🔤 Глаголы: {today['verbs']}"
-            f"\nСредний результат: {today['score']}%"
+            "\n\n✅ Udført i dag"
+            f"\n🎧 Lyd: {today['audio']}"
+            f"\n🧪 Test: {today['tests']}"
+            f"\n📚 Grammatik: {today['grammar']}"
+            f"\n✍️ Skrivning: {today['writing']}"
+            f"\n🔤 Verber: {today['verbs']}"
+            f"\nGennemsnitligt resultat: {today['score']}%"
         )
     if test_stats["count"]:
         report += (
-            "\n\n🧪 Результаты тестов"
-            f"\nПоследний: {test_stats['latest']}%"
-            f"\nЛучший: {test_stats['best']}%"
-            f"\nСредний: {test_stats['average']}%"
+            "\n\n🧪 Testresultater"
+            f"\nSeneste: {test_stats['latest']}%"
+            f"\nBedste: {test_stats['best']}%"
+            f"\nGennemsnit: {test_stats['average']}%"
         )
     await _present(
         update,

@@ -10,11 +10,11 @@ STUDY_SECTIONS: Final[tuple[str, ...]] = (
 )
 
 SECTION_LABELS: Final[dict[str, str]] = {
-    "audio": "🎧 Аудио",
-    "tests": "🧪 Тесты",
-    "grammar": "📚 Грамматика",
-    "writing": "✍️ Письмо",
-    "verbs": "🔤 Глаголы",
+    "audio": "🎧 Lyd",
+    "tests": "🧪 Test",
+    "grammar": "📚 Grammatik",
+    "writing": "✍️ Skrivning",
+    "verbs": "🔤 Verber",
 }
 
 DEFAULT_SECTION_TOTALS: Final[dict[str, int]] = {
@@ -68,7 +68,7 @@ def format_progress_report(
     lines = [
         f"🇩🇰 Dansk — {level}",
         "",
-        f"Прогресс плана {level}: {progress_bar(overall)} {overall}%",
+        f"Fremskridt i planen {level}: {progress_bar(overall)} {overall}%",
         "",
     ]
     for section in STUDY_SECTIONS:
@@ -78,8 +78,8 @@ def format_progress_report(
         [
             "",
             (
-                "Процент показывает прогресс внутри текущего учебного плана, а не "
-                "долю всего датского языка, которую вы знаете."
+                "Procenten viser dine fremskridt i den aktuelle studieplan, ikke "
+                "hvor meget af det danske sprog du kan."
             ),
         ]
     )

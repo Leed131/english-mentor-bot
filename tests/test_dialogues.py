@@ -59,7 +59,7 @@ class ValidationTests(unittest.TestCase):
 
 class GenerationTests(unittest.IsolatedAsyncioTestCase):
     async def test_blind_solver_and_feedback_verifier(self):
-        call = AsyncMock(side_effect=[example(), {"valid":True,"answers":["D","A","B"]}, {"valid":True}])
+        call = AsyncMock(side_effect=[example(), {"valid":True,"answers":["D","A","B"],"candidates":[["D"],["A"],["B"]]}, {"valid":True}])
         with patch("dialogue_generator._json_call", call):
             self.assertEqual((await prepare_dialogue("кафе"))["answers"], ["D","A","B"])
         blind = json.loads(call.call_args_list[1].args[1])
@@ -67,7 +67,7 @@ class GenerationTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("explanations", blind)
 
     async def test_ambiguous_generation_never_reaches_learner(self):
-        with patch("dialogue_generator._json_call", AsyncMock(side_effect=[example(), {"valid":False}, example(), {"valid":False}])):
+        with patch("dialogue_generator._json_call", AsyncMock(side_effect=[example(), {"valid":False}, example(), {"valid":False}, example(), {"valid":False}])):
             with self.assertRaises(ValueError):
                 await prepare_dialogue("кафе")
 

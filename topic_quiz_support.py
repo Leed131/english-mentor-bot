@@ -41,7 +41,7 @@ def _continuation_markup(quiz_id: int) -> InlineKeyboardMarkup:
         [
             [
                 InlineKeyboardButton(
-                    "➡️ Ещё 5 по теме",
+                    "➡️ Fem nye om emnet",
                     callback_data=f"topicquiz:more:{quiz_id}",
                 )
             ],

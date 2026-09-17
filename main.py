@@ -36,6 +36,7 @@ def configure_logging() -> None:
 async def run_bots() -> None:
     validate_environment()
 
+    from dialogue_support import install_dialogue_support
     from discord_bot import run_discord_bot
     from du3_opgave2_support import install_du3_opgave2_support
     from study_memory import initialize_study_memory
@@ -47,6 +48,7 @@ async def run_bots() -> None:
     install_telegram_image_support()
     install_topic_quiz_support()
     install_du3_opgave2_support()
+    install_dialogue_support()
 
     tasks = {
         asyncio.create_task(run_discord_bot(), name="Discord bot"),

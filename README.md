@@ -81,6 +81,39 @@ Records are keyed through a learner profile whose unique identity is
 `platform + user_id + language`, so Telegram, Discord, and different users do
 not share study data. Table initialization never drops existing records.
 
+## Danish reading dialogues
+
+Open **Тесты → Диалоги — чтение**, or use `/dialogues`.
+
+- **Как на экзамене** shows the whole conversation, three gaps and A–F options
+  (three unused). Submit `1F 2D 3B` or `FDB`; results appear after all answers.
+- **Тренировка** keeps both surrounding lines visible and accepts one letter or
+  button per gap, with immediate Russian explanations and translations of clues.
+- Generate original A2/B1 everyday dialogues about transport, shopping, housing,
+  work, invitations or family, or enter your own topic. **Ещё похожее** generates
+  another dialogue on the same topic and avoids the 15 recent situations.
+- **Добавить задание** accepts text or a photo (up to 10 MB). Include the full
+  conversation and six options. The bot shows an editable-by-resubmission preview;
+  **Сохранить и начать** saves it to that user's **Мои задания**.
+- **Повторить ошибки** lists recent completed dialogues with mistakes; retrying
+  creates a new attempt. Lists show the most recent 15 matching records.
+- **Продолжить** inside the dialogues menu resumes an unfinished dialogue, including
+  after restart. Leaving the mode pauses it so other activities can receive text.
+
+Generation/import validates the schema, then independently solves the task without
+seeing the proposed key, and checks Russian feedback in a separate call. Failed
+validation gets one retry; unusable tasks are not shown. These model checks reduce
+ambiguity but are not a guarantee of linguistic accuracy. Typed answers are graded
+locally against the saved key, with no model-based grading. Imported handwritten
+answers are treated as guesses rather than an authoritative key.
+
+The new `dialogue_sessions` table is created automatically and stores private
+exercises, answers and attempts through the existing learner profile. Completed
+attempts contribute to Tests statistics once; opening/generating a task does not.
+The existing confirmed `/reset_progress` also deletes that learner's saved dialogues.
+No new environment variables or packages are required. Generation uses `OPENAI_MODEL`;
+photo transcription uses the existing `OPENAI_VISION_MODEL` setting.
+
 ## Environment variables
 
 | Variable | Required | Description |

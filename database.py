@@ -87,6 +87,9 @@ class LearnerProfile(Base):
         back_populates="profile",
         cascade="all, delete-orphan",
     )
+    dialogues: Mapped[list["DialogueSession"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan",
+    )
     quizzes: Mapped[list["QuizSession"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
@@ -302,6 +305,23 @@ class QuizSession(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     profile: Mapped[LearnerProfile] = relationship(back_populates="quizzes")
+
+
+class DialogueSession(Base):
+    __tablename__ = "dialogue_sessions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("learner_profiles.id", ondelete="CASCADE"), nullable=False, index=True,
+    )
+    data_json: Mapped[str] = mapped_column(Text, nullable=False)
+    answers_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    mode: Mapped[str] = mapped_column(String(16), nullable=False, default="exam")
+    custom: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    score: Mapped[int | None] = mapped_column(Integer)
+    profile: Mapped[LearnerProfile] = relationship(back_populates="dialogues")
 
 
 class VerbReviewAttempt(Base):

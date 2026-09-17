@@ -117,6 +117,17 @@ class StartupTests(unittest.IsolatedAsyncioTestCase):
             "study_memory": study_memory_module,
         }
 
+        # Startup orchestration uses runner-only modules: installers are tested separately.
+        for module_name, installer in (
+            ("telegram_image_support", "install_telegram_image_support"),
+            ("topic_quiz_support", "install_topic_quiz_support"),
+            ("du3_opgave2_support", "install_du3_opgave2_support"),
+            ("dialogue_support", "install_dialogue_support"),
+        ):
+            module = types.ModuleType(module_name)
+            setattr(module, installer, lambda: None)
+            modules[module_name] = module
+
         with (
             patch.dict(os.environ, environment, clear=True),
             patch.dict(sys.modules, modules),

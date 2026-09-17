@@ -43,7 +43,7 @@ class TopicQuizTests(unittest.TestCase):
         labels = {button.text for button in buttons}
         callbacks = {button.callback_data for button in buttons}
 
-        self.assertIn("➡️ Ещё 5 по теме", labels)
+        self.assertIn("➡️ Fem nye om emnet", labels)
         self.assertIn("topicquiz:more:42", callbacks)
 
     def test_quiz_text_has_position_without_percent(self):

@@ -112,7 +112,7 @@ async def image_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             [
                 [
                     InlineKeyboardButton(
-                        "🧩 Упражнения по этой теме",
+                        "🧩 Øvelser om emnet",
                         callback_data="topicquiz:current",
                     )
                 ]

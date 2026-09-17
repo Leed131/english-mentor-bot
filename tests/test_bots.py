@@ -187,14 +187,14 @@ class TelegramConfigurationTests(unittest.TestCase):
         labels = {button.text for row in _main_menu().inline_keyboard for button in row}
         self.assertTrue(
             {
-                "🎧 Аудио",
-                "🧪 Тесты",
-                "📚 Грамматика",
-                "✍️ Письмо",
-                "🔤 Глаголы",
-                "📊 Прогресс",
-                "🔁 Повторить",
-                "▶️ Продолжить",
+                "🎧 Lyd",
+                "🧪 Test",
+                "📚 Grammatik",
+                "✍️ Skrivning",
+                "🔤 Verber",
+                "📊 Fremskridt",
+                "🔁 Repetition",
+                "▶️ Fortsæt",
             }.issubset(labels)
         )
 

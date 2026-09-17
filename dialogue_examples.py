@@ -1,0 +1,121 @@
+"""Hand-reviewed reserve exercises. They are explicitly labelled as prepared, not generated."""
+import random
+
+from dialogue_generator import LETTERS, validate_dialogue
+
+# Correct replies are paired with the surrounding given turns before letters are shuffled.
+EXAMPLES = [
+    dict(topic="Aftaler og transport", aliases=("встреч", "транспорт"),
+         situation="Nora skriver til sin mor, fordi hendes tog snart ankommer.",
+         speakers=["Nora", "Mor"],
+         lines=["Hej mor. Mit tog kommer klokken tre. Kan du hente mig?",
+                "Jeg har først fri klokken fire. Jeg kan spørge far.",
+                "Tak. Kan han være der klokken tre?",
+                "Så venter jeg på dig, mor. Jeg går ind på caféen ved stationen.",
+                "Godt, så bestiller jeg en kop kaffe. Skriv, når du kører.",
+                "Tak, så holder jeg øje med telefonen. Vi ses ved stationen!"],
+         replies=["Nej, han er også på arbejde til klokken fire.",
+                  "God idé. Der kan du sidde varmt, mens du venter.",
+                  "Det skal jeg nok. Jeg sender en besked, inden jeg kører."],
+         distractors=["Ja, far står allerede på stationen og venter på dig.",
+                      "Caféen ved stationen er lukket hele dagen i dag.",
+                      "Min telefon virker ikke, så jeg kan ikke skrive til dig."],
+         explanations=["«Kan han …?» относится к папе. Он тоже работает до четырёх, поэтому Нора решает ждать маму: «Så venter jeg på dig, mor». Вариант о папе на вокзале этому противоречит.",
+                       "Мама одобряет ожидание в кафе: там тепло. Поэтому Нора затем заказывает кофе. Если кафе закрыто, продолжение не подходит.",
+                       "Нора просит написать перед выездом. Мама обещает сообщение, поэтому Нора будет следить за телефоном: «holder jeg øje med telefonen». Неисправный телефон противоречит этому."]),
+    dict(topic="Indkøb og returvarer", aliases=("покуп", "возврат"),
+         situation="Ida spørger en ekspedient om at bytte en jakke.", speakers=["Ida", "Ekspedient"],
+         lines=["Hej, jeg købte denne jakke i går. Kan jeg bytte den?", "Ja. Hvad er der galt med den?",
+                "Den er for lille. Har I den samme jakke i medium?",
+                "Sort er også fint. Må jeg prøve den sorte i medium?",
+                "Tak, den passer. Skal jeg vise kvitteringen for at bytte?",
+                "Her er kvitteringen på min telefon. Så tager jeg den sorte."],
+         replies=["Ja, men i medium har vi den kun i sort.",
+                  "Ja, selvfølgelig. Prøverummet er lige derovre.",
+                  "Ja tak. Du kan også vise en digital kvittering."],
+         distractors=["Nej, den er helt udsolgt i medium, også i sort.",
+                      "Nej, denne jakke må du ikke prøve på.",
+                      "Nej, vi tager kun imod kvitteringer på papir."],
+         explanations=["Ида спрашивает размер medium. Он есть только в чёрном цвете, поэтому она отвечает: «Sort er også fint» — чёрный тоже подходит. Полное отсутствие размера не объясняет примерку.",
+                       "Ида просит примерить куртку. Продавец разрешает и указывает примерочную; затем она говорит «den passer» — она подходит. Запрет на примерку нарушает эту связь.",
+                       "Продавец принимает электронный чек. Поэтому Ида показывает его на телефоне. Требование только бумажного чека противоречит последней реплике."]),
+    dict(topic="Naboer og bolig", aliases=("сосед", "жиль"),
+         situation="Emil spørger sin nabo Sara, om han må låne en boremaskine.", speakers=["Emil", "Sara"],
+         lines=["Hej Sara. Må jeg låne din boremaskine i dag?", "Ja, selvfølgelig. Hvornår skal du bruge den?",
+                "Jeg vil gerne hente den klokken seks. Er du hjemme der?",
+                "Så kommer jeg klokken syv i stedet. Må jeg beholde den til i morgen?",
+                "Fint, jeg afleverer den klokken ti i morgen. Skal jeg ringe på?",
+                "Godt, så skriver jeg, når jeg står ved døren. Jeg ringer ikke på."],
+         replies=["Nej, jeg kommer først hjem klokken syv.",
+                  "Ja, bare jeg får den tilbage inden klokken tolv i morgen.",
+                  "Skriv hellere en besked. Dørklokken virker ikke."],
+         distractors=["Jeg er ikke hjemme hele aftenen, heller ikke klokken syv.",
+                      "Nej, jeg skal bruge den igen allerede i aften.",
+                      "Ring bare på. Jeg kan ikke modtage beskeder i morgen."],
+         explanations=["Сара будет дома только в семь: «først … klokken syv». Поэтому Эмиль переносит визит с шести на семь. Отсутствие весь вечер не подходит.",
+                       "Сара разрешает оставить дрель до завтра, но просит вернуть до двенадцати. Возврат в десять удовлетворяет условию. Требование вернуть сегодня противоречит ответу Эмиля.",
+                       "Звонок не работает, поэтому Сара просит сообщение. Эмиль соглашается написать у двери и подчёркивает, что звонить не будет."]),
+    dict(topic="Arbejde og vagter", aliases=("работ", "смен"),
+         situation="Maja spørger sin kollega Ali, om de kan bytte vagter.", speakers=["Maja", "Ali"],
+         lines=["Hej Ali. Kan vi bytte vagter på fredag?", "Måske. Hvilken vagt har du?",
+                "Jeg arbejder om aftenen, men jeg skal til fødselsdag. Kan du tage min aftenvagt?",
+                "Ja, jeg tager din morgenvagt. Skal vi spørge chefen først?",
+                "Fint, spørg hende. Jeg venter med at ændre noget i vagtplanen.",
+                "Dejligt, så er det godkendt. Jeg ændrer vagtplanen nu."],
+         replies=["Ja, hvis du kan tage min morgenvagt samme dag.",
+                  "Ja, hun skal godkende det. Jeg spørger hende nu.",
+                  "Hun har lige sagt ja til, at vi bytter."],
+         distractors=["Nej, jeg kan slet ikke arbejde fredag aften.",
+                      "Nej, vi må bytte uden at spørge nogen.",
+                      "Hun har sagt nej. Vi må ikke bytte vagter."],
+         explanations=["Али согласен при условии, что Майя возьмёт утро. «Ja, jeg tager din morgenvagt» прямо принимает это условие. Отказ работать вечером не подходит.",
+                       "Нужно согласие начальницы, и Али обещает спросить её. Поэтому Майя говорит «spørg hende» и ждёт, не меняя график.",
+                       "Начальница только что согласилась: «sagt ja». Майя отвечает «så er det godkendt» — значит, одобрено — и меняет график. Отказ дал бы противоположный смысл."]),
+    dict(topic="Biograf og invitationer", aliases=("кино", "приглаш"),
+         situation="Freja inviterer sin ven Jonas i biografen.", speakers=["Freja", "Jonas"],
+         lines=["Hej Jonas. Vil du med i biografen på fredag?", "Det vil jeg gerne. Hvornår starter filmen?",
+                "Den starter klokken seks. Kan du nå det efter arbejde?",
+                "Så vælger vi forestillingen klokken ni. Skal jeg købe to billetter?",
+                "Fint, jeg køber dem nu. Vil du spise sammen før filmen?",
+                "Godt, så mødes vi ved restauranten klokken otte og spiser først."],
+         replies=["Nej, jeg har først fri klokken syv. Kan vi vælge en senere forestilling?",
+                  "Ja tak, køb en til hver af os. Jeg betaler dig bagefter.",
+                  "Ja, lad os spise på restauranten ved biografen klokken otte."],
+         distractors=["Jeg kan kun klokken seks. Klokken ni er alt for sent for mig.",
+                      "Nej, køb ikke billetter. Jeg har allerede købt to til os.",
+                      "Nej, jeg vil ikke spise. Jeg kommer først klokken ni."],
+         explanations=["Йонас освобождается только в семь и просит более поздний сеанс. Фрея предлагает девять. Вариант «могу только в шесть» противоречит этому.",
+                       "Йонас просит купить по билету каждому. Поэтому Фрея отвечает «jeg køber dem nu» — покупаю их сейчас. Уже купленные два билета сделали бы покупку лишней.",
+                       "Йонас предлагает ресторан в восемь перед фильмом. Последняя реплика подтверждает место, время и ужин. Отказ от еды не подходит."]),
+    dict(topic="Familie og skole", aliases=("семь", "школ"),
+         situation="Sofie skriver til sin far om en tur med skolen.", speakers=["Sofie", "Far"],
+         lines=["Hej far. Vi skal på tur med skolen i morgen.", "Hvor hyggeligt! Hvornår skal I mødes?",
+                "Klokken otte ved skolen. Kan du køre mig derhen?",
+                "Så tager jeg bussen. Kan du hjælpe mig med en madpakke i aften?",
+                "Tak, så pakker jeg madpakken og min drikkedunk i tasken. Skal jeg tage regnjakke med?",
+                "Så tager jeg regnjakken med. Jeg vil helst ikke blive våd."],
+         replies=["Desværre ikke. Jeg skal møde på arbejde allerede klokken syv.",
+                  "Ja, vi kan lave nogle sandwich sammen efter aftensmaden.",
+                  "Ja, det bliver regnvejr under jeres tur."],
+         distractors=["Ja, jeg kører dig hele vejen til skolen i morgen tidlig.",
+                      "Nej, du må ikke tage mad eller drikke med på turen.",
+                      "Nej, lad regnjakken blive hjemme. I skal være indendørs hele dagen."],
+         explanations=["Папа работает с семи и не может отвезти к восьми. Поэтому Софи выбирает автобус: «Så tager jeg bussen». Обещание отвезти не объясняет этот выбор.",
+                       "Папа предлагает вместе приготовить сэндвичи вечером. Затем Софи планирует положить еду и воду в сумку. Запрет брать еду противоречил бы этому.",
+                       "На экскурсии ожидается дождь. Поэтому Софи берёт дождевик, чтобы не промокнуть. Совет оставить его дома не соответствует последней реплике."]),
+]
+
+
+def reserve_dialogue(topic, recent=()):
+    normalized = topic.casefold()
+    matches = [e for e in EXAMPLES if e["topic"].casefold() == normalized or any(a in normalized for a in e["aliases"])]
+    available = [e for e in matches if e["situation"] not in recent]
+    if not matches:
+        return None
+    raw = random.SystemRandom().choice(available or matches)
+    options = raw["replies"] + raw["distractors"]
+    random.SystemRandom().shuffle(options)
+    data = {k: raw[k] for k in ("topic", "situation", "speakers", "lines", "explanations")}
+    data["options"] = dict(zip(LETTERS, options))
+    data["answers"] = [LETTERS[options.index(reply)] for reply in raw["replies"]]
+    return validate_dialogue(data)

@@ -34,7 +34,7 @@ Important Danish mistakes are corrected briefly, and both voice messages and
 typed answers are accepted while the session is active.
 
 Generated topic exercises stay in five-question blocks. After each completed
-block the learner can choose **Ещё 5 по теме** to continue the same topic for as
+block the learner can choose **Fem nye om emnet** to continue the same topic for as
 many blocks as desired. The generator receives up to 30 recently used questions
 for that topic and is instructed to avoid repeats and close paraphrases.
 
@@ -83,29 +83,44 @@ not share study data. Table initialization never drops existing records.
 
 ## Danish reading dialogues
 
-Open **Тесты → Диалоги — чтение**, or use `/dialogues`.
+Open **Test → Dialoger — læsning**, or use `/dialogues`.
 
-- **Как на экзамене** shows the whole conversation, three gaps and A–F options
+- **Som til prøven** shows the whole conversation, three gaps and A–F options
   (three unused). Submit `1F 2D 3B` or `FDB`; results appear after all answers.
-- **Тренировка** keeps both surrounding lines visible and accepts one letter or
+- **Øvelse** keeps both surrounding lines visible and accepts one letter or
   button per gap, with immediate Russian explanations and translations of clues.
 - Generate original A2/B1 everyday dialogues about transport, shopping, housing,
-  work, invitations or family, or enter your own topic. **Ещё похожее** generates
+  work, invitations or family, or enter your own topic. **En lignende opgave** generates
   another dialogue on the same topic and avoids the 15 recent situations.
-- **Добавить задание** accepts text or a photo (up to 10 MB). Include the full
+- **Tilføj opgave** accepts text or a photo (up to 10 MB). Include the full
   conversation and six options. The bot shows an editable-by-resubmission preview;
-  **Сохранить и начать** saves it to that user's **Мои задания**.
-- **Повторить ошибки** lists recent completed dialogues with mistakes; retrying
+  **Gem og start** saves it to that user's **Mine opgaver**.
+- **Øv dine fejl** lists recent completed dialogues with mistakes; retrying
   creates a new attempt. Lists show the most recent 15 matching records.
-- **Продолжить** inside the dialogues menu resumes an unfinished dialogue, including
+- **Fortsæt** inside the dialogues menu resumes an unfinished dialogue, including
   after restart. Leaving the mode pauses it so other activities can receive text.
 
 Generation/import validates the schema, then independently solves the task without
 seeing the proposed key, and checks Russian feedback in a separate call. Failed
-validation gets one retry; unusable tasks are not shown. These model checks reduce
+validation gets up to two repair attempts that receive the previous candidate and
+specific rejection feedback. The reviewer receives a speaker-labelled transcript,
+explicit gaps and both neighbouring lines, and must identify exactly one candidate
+per gap. Generation has a 60-second overall deadline; unusable tasks are not shown.
+These model checks reduce
 ambiguity but are not a guarantee of linguistic accuracy. Typed answers are graded
 locally against the saved key, with no model-based grading. Imported handwritten
 answers are treated as guesses rather than an authoritative key.
+
+All static Telegram menus, topics, navigation, status and progress messages are in
+Danish. Russian input aliases remain accepted; learning explanations and vocabulary
+translations remain in Russian.
+
+If generation fails or times out, the six standard topics have hand-reviewed reserve
+exercises in `dialogue_examples.py`. These are clearly labelled as prepared exercises.
+Letters are shuffled without changing the answer mapping. If the reserve has already
+been seen, the bot explicitly calls it repetition. Custom topics without a matching
+reserve show a retry/choose-another-topic message. Imports never substitute a reserve
+for the learner's source. Database failures are reported separately from generation.
 
 The new `dialogue_sessions` table is created automatically and stores private
 exercises, answers and attempts through the existing learner profile. Completed

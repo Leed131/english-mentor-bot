@@ -16,8 +16,8 @@ from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
 STATE = "dialogue_input"
-TOPICS = ["Встречи и транспорт", "Покупки и возврат товара", "Соседи и жильё",
-          "Работа и смены", "Кино и приглашения", "Семья и школа"]
+TOPICS = ["Aftaler og transport", "Indkøb og returvarer", "Naboer og bolig",
+          "Arbejde og vagter", "Biograf og invitationer", "Familie og skole"]
 
 
 def keyboard(rows):
@@ -26,9 +26,9 @@ def keyboard(rows):
 
 def menu():
     return keyboard([
-        [("🎓 Как на экзамене", "dialog:topics:exam"), ("💡 Тренировка", "dialog:topics:practice")],
-        [("➕ Добавить задание", "dialog:add"), ("📚 Мои задания", "dialog:mine")],
-        [("🔁 Повторить ошибки", "dialog:review"), ("▶️ Продолжить", "dialog:resume")],
+        [("🎓 Som til prøven", "dialog:topics:exam"), ("💡 Øvelse", "dialog:topics:practice")],
+        [("➕ Tilføj opgave", "dialog:add"), ("📚 Mine opgaver", "dialog:mine")],
+        [("🔁 Øv dine fejl", "dialog:review"), ("▶️ Fortsæt", "dialog:resume")],
         [("⬅️ Studiemenu", "study:menu")],
     ])
 
@@ -64,7 +64,7 @@ def db_action(user_id, action, **args):
             session.flush()
             profile.current_section = "tests"
             profile.current_topic = data["topic"]
-            profile.next_step = "Диалоги: /dialogues → Продолжить"
+            profile.next_step = "Dialoger: /dialogues → Fortsæt"
             return snapshot(row)
         if action == "get":
             row = session.scalar(query.where(DialogueSession.id == args["id"]))
@@ -94,19 +94,19 @@ def db_action(user_id, action, **args):
         answers = args["answers"]
         if row.mode == "exam":
             if previous or len(answers) != 3:
-                raise ValueError("Введи все три ответа: 1F 2D 3B.")
+                raise ValueError("Skriv alle tre svar, fx 1F 2D 3B.")
         elif len(answers) != 1:
-            raise ValueError("В тренировке отвечай по одной букве A–F.")
+            raise ValueError("I øvelsen skal du svare med ét bogstav A–F ad gangen.")
         combined = previous + answers
         if len(combined) > 3 or len(set(combined)) != len(combined) or any(a not in LETTERS for a in combined):
-            raise ValueError("Нужны разные буквы A–F.")
+            raise ValueError("Brug forskellige bogstaver A–F.")
         row.answers_json = json.dumps(combined)
         if len(combined) == 3:
             correct = sum(a == b for a, b in zip(combined, data["answers"]))
             row.completed, row.active, row.score = True, False, round(correct / 3 * 100)
             memory._record_activity(session, profile, "tests", data["topic"], row.score,
                                     correct, 3-correct, {"dialogue_id": row.id, "answers": combined},
-                                    "Диалоги: ещё похожее или повторить ошибки")
+                                    "Dialoger: en lignende opgave eller øv dine fejl")
         session.flush()
         return snapshot(row)
 
@@ -119,15 +119,15 @@ def exercise_text(item, reveal=False):
     data = item["data"]
     a, b = data["speakers"]
     lines = data["lines"]
-    out = ["🧩 Диалоги — чтение", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]} (пример)"]
+    out = ["🧩 Dialoger — læsning", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]} (eksempel)"]
     for i in range(3):
         out.append(f"{a}: {lines[i+2]}")
         answer = data["answers"][i] if reveal else (item["answers"][i] if i < len(item["answers"]) else None)
         out.append(f"{b}: [{i+1}] " + (f"{answer} — {data['options'][answer]}" if answer else "_____"))
-    out.extend([f"{a}: {lines[5]}", "", "Варианты (три лишние):"])
+    out.extend([f"{a}: {lines[5]}", "", "Svarmuligheder (tre skal ikke bruges):"])
     out.extend(f"{k}. {v}" for k, v in data["options"].items())
     if not reveal:
-        out.extend(["", "Отвечай одной буквой A–F." if item["mode"] == "practice" else "Введи три буквы: 1F 2D 3B или FDB."])
+        out.extend(["", "Svar med ét bogstav A–F." if item["mode"] == "practice" else "Skriv tre svar, fx 1F 2D 3B eller FDB."])
     return "\n".join(out)
 
 
@@ -148,7 +148,7 @@ async def show(update, item):
     if item["mode"] == "practice":
         rows.append([(letter, f"dialog:answer:{item['id']}:{len(item['answers'])}:{letter}")
                      for letter in LETTERS if letter not in item["answers"]])
-    rows.append([("⬅️ Диалоги", "dialog:menu")])
+    rows.append([("⬅️ Dialoger", "dialog:menu")])
     await send(update, exercise_text(item), keyboard(rows))
 
 
@@ -159,49 +159,62 @@ async def grade(update, user, answers, **kwargs):
         await send(update, str(error))
         return
     if not item:
-        await send(update, "Этот ответ уже учтён или задание не активно. Открой «Продолжить».", menu())
+        await send(update, "Svaret er allerede gemt, eller opgaven er ikke aktiv. Vælg Fortsæt.", menu())
         return
     indices = range(3) if item["mode"] == "exam" else [len(item["answers"])-1]
     for i in indices:
         correct = item["data"]["answers"][i]
-        await send(update, f"{'✅' if item['answers'][i] == correct else '❌'} {i+1}: твой ответ {item['answers'][i]}, правильный {correct}.\n\n"
+        await send(update, f"{'✅' if item['answers'][i] == correct else '❌'} {i+1}: dit svar {item['answers'][i]}, rigtigt svar {correct}.\n\n"
                    + item["data"]["explanations"][i])
     if item["completed"]:
         await send(update, exercise_text(item, reveal=True))
-        await send(update, f"Результат сохранён: {item['score']}%.", keyboard([
-            [("🔄 Ещё похожее", f"dialog:more:{item['id']}")],
-            [("🔁 Повторить", f"dialog:retry:{item['id']}")],
-            [("⬅️ Диалоги", "dialog:menu")],
+        await send(update, f"Resultatet er gemt: {item['score']}%.", keyboard([
+            [("🔄 En lignende opgave", f"dialog:more:{item['id']}")],
+            [("🔁 Repetition", f"dialog:retry:{item['id']}")],
+            [("⬅️ Dialoger", "dialog:menu")],
         ]))
     else:
         await show(update, item)
 
 
 async def generate(update, user, topic, mode):
-    await send(update, "Готовлю и проверяю новый диалог…")
+    await send(update, "Jeg laver og tjekker en ny dialog…")
     recent = await db(user, "recent")
+    situations = [r["data"]["situation"] for r in recent]
     try:
-        data = await prepare_dialogue(topic, [r["data"]["situation"] for r in recent])
-        item = await db(user, "create", data=data, mode=mode)
+        data = await asyncio.wait_for(prepare_dialogue(topic, situations), timeout=60)
     except Exception:
         logger.exception("Dialogue generation failed")
-        await send(update, "Не удалось подготовить проверенный диалог. Попробуй ещё раз.", menu())
+        from dialogue_examples import reserve_dialogue
+        data = reserve_dialogue(topic, situations)
+        if data is None:
+            await send(update, "Jeg kunne ikke lave en entydig dialog lige nu. Prøv igen eller vælg et andet emne.", menu())
+            return
+        notice = "Den nye dialog kunne ikke kontrolleres. Her er en gennemgået øvelse om samme emne."
+        if data["situation"] in situations:
+            notice += " Du har set den før; du kan bruge den til repetition."
+        await send(update, notice)
+    try:
+        item = await db(user, "create", data=data, mode=mode)
+    except Exception:
+        logger.exception("Dialogue save failed")
+        await send(update, "Opgaven kunne ikke gemmes. Prøv igen om lidt.", menu())
         return
     await show(update, item)
 
 
 async def import_draft(update, context, source):
-    await send(update, "Читаю задание и проверяю ответы…")
+    await send(update, "Jeg læser opgaven og tjekker svarene…")
     try:
-        data = await prepare_dialogue("Моё задание", source=source)
+        data = await prepare_dialogue("Min opgave", source=source)
     except Exception:
         logger.exception("Dialogue import failed")
-        await send(update, "Не удалось разобрать однозначное задание. Пришли полный текст: диалог, варианты A–F и ключ, если он есть.")
+        await send(update, "Opgaven kunne ikke kontrolleres. Send hele dialogen, svarmulighederne A–F og facit, hvis du har det.")
         return
     context.user_data[STATE] = {"draft": data}
-    await send(update, "Проверь распознанный текст. Для исправления пришли полный исправленный текст ещё раз.")
+    await send(update, "Tjek teksten. Hvis noget er forkert, så send hele den rettede tekst igen.")
     await send(update, exercise_text(dict(data=data, answers=[], mode="exam")), keyboard([
-        [("✅ Сохранить и начать", "dialog:save")], [("Отмена", "dialog:menu")],
+        [("✅ Gem og start", "dialog:save")], [("Annuller", "dialog:menu")],
     ]))
 
 
@@ -213,7 +226,7 @@ async def command(update, context):
     context.user_data.pop("du3_opgave2_session", None)
     context.user_data.pop(STATE, None)
     await db(user, "pause")
-    await send(update, "🧩 Диалоги — чтение\nТри пропуска, шесть вариантов. Читай реплики до и после пропуска.", menu())
+    await send(update, "🧩 Dialoger — læsning\nTre huller, seks svar. Læs replikkerne før og efter hvert hul.", menu())
     raise ApplicationHandlerStop
 
 
@@ -232,9 +245,9 @@ async def callback(update, context):
             return
         await query.answer()
         context.user_data.pop("du3_opgave2_session", None)
-        await send(update, "🧪 Тесты — выбери формат", keyboard([
-            [("🧩 Диалоги — чтение", "dialog:menu")],
-            [("🧪 Короткий A1-тест", "dialog:a1")], [("⬅️ Studiemenu", "study:menu")],
+        await send(update, "🧪 Test — vælg en type", keyboard([
+            [("🧩 Dialoger — læsning", "dialog:menu")],
+            [("🧪 Kort A1-test", "dialog:a1")], [("⬅️ Studiemenu", "study:menu")],
         ]))
         raise ApplicationHandlerStop
     await query.answer()
@@ -245,26 +258,26 @@ async def callback(update, context):
         context.user_data.pop(STATE, None)
         await db(user, "pause")
     if action == "menu":
-        await send(update, "🧩 Диалоги — чтение", menu())
+        await send(update, "🧩 Dialoger — læsning", menu())
     elif action == "a1":
         await telegram_bot._start_quiz(update, "test")
     elif action == "topics":
         mode = parts[2]
         if mode not in {"exam", "practice"}:
             raise ApplicationHandlerStop
-        await send(update, "Выбери бытовую ситуацию:", keyboard(
+        await send(update, "Vælg en hverdagssituation:", keyboard(
             [[(topic, f"dialog:new:{mode}:{i}")] for i, topic in enumerate(TOPICS)] +
-            [[("✍️ Своя тема", f"dialog:topic:{mode}")], [("⬅️ Диалоги", "dialog:menu")]]))
+            [[("✍️ Eget emne", f"dialog:topic:{mode}")], [("⬅️ Dialoger", "dialog:menu")]]))
     elif action == "topic":
         context.user_data[STATE] = {"topic_mode": parts[2]}
-        await send(update, "Напиши тему, например: опоздание на работу.", menu())
+        await send(update, "Skriv et emne, fx at komme for sent på arbejde.", menu())
     elif action == "new":
         if parts[2] in {"exam", "practice"} and parts[3].isdigit() and int(parts[3]) < len(TOPICS):
             await generate(update, user, TOPICS[int(parts[3])], parts[2])
     elif action == "add":
         context.user_data[STATE] = {"import": True}
-        await send(update, "Пришли текст или фото задания: весь диалог с тремя пропусками и варианты A–F. "
-                   "Можешь указать правильные буквы. Перед сохранением покажу текст для проверки.", menu())
+        await send(update, "Send tekst eller et foto med hele dialogen, tre huller og svarmulighederne A–F. "
+                   "Du kan også sende facit. Du får teksten til gennemsyn, før den bliver gemt.", menu())
     elif action == "save":
         draft = context.user_data.get(STATE, {}).get("draft")
         if draft:
@@ -272,22 +285,22 @@ async def callback(update, context):
             context.user_data.pop(STATE, None)
             await show(update, item)
         else:
-            await send(update, "Черновик уже сохранён или недоступен. Добавь задание снова.", menu())
+            await send(update, "Kladden er allerede gemt eller ikke tilgængelig. Tilføj opgaven igen.", menu())
     elif action in {"mine", "review"}:
         items = await db(user, action)
-        await send(update, "Выбери задание:" if items else "Пока нет таких заданий.", keyboard(
+        await send(update, "Vælg en opgave:" if items else "Der er ingen opgaver her endnu.", keyboard(
             [[(f"{r['id']}: {r['data']['topic']}", f"dialog:retry:{r['id']}")] for r in items] +
-            [[("⬅️ Диалоги", "dialog:menu")]]))
+            [[("⬅️ Dialoger", "dialog:menu")]]))
     elif action == "resume":
         item = await db(user, "resume")
         if item:
             await show(update, item)
         else:
-            await send(update, "Нет незаконченных диалогов.", menu())
+            await send(update, "Der er ingen ufærdige dialoger.", menu())
     elif action in {"retry", "more"} and parts[2].isdigit():
         item = await db(user, "get", id=int(parts[2]))
         if not item:
-            await send(update, "Задание недоступно.", menu())
+            await send(update, "Opgaven er ikke tilgængelig.", menu())
         elif action == "more":
             await generate(update, user, item["data"]["topic"], item["mode"])
         else:
@@ -311,13 +324,13 @@ async def text_message(update, context):
     state = context.user_data.get(STATE, {})
     if "topic_mode" in state:
         if len(text) > 160:
-            await send(update, "Сократи тему до 160 символов.")
+            await send(update, "Skriv et emne på højst 160 tegn.")
         else:
             context.user_data.pop(STATE, None)
             await generate(update, user, text, state["topic_mode"])
     elif state.get("import") or state.get("draft"):
         if len(text) > 10000:
-            await send(update, "Пришли одно задание длиной до 10 000 символов.")
+            await send(update, "Send én opgave på højst 10.000 tegn.")
         else:
             await import_draft(update, context, text)
     else:
@@ -340,10 +353,10 @@ async def photo_message(update, context):
     message = update.effective_message
     attachment = message.photo[-1] if message.photo else message.document
     if attachment.file_size and attachment.file_size > 10_000_000:
-        await send(update, "Пришли фото меньше 10 МБ.")
+        await send(update, "Send et foto på under 10 MB.")
         raise ApplicationHandlerStop
     suffix = ".jpg" if message.photo else {"image/png": ".png", "image/webp": ".webp"}.get(attachment.mime_type, ".jpg")
-    await send(update, "Распознаю фотографию…")
+    await send(update, "Jeg læser billedet…")
     try:
         with tempfile.TemporaryDirectory() as directory:
             path = str(Path(directory) / ("dialogue" + suffix))
@@ -355,7 +368,7 @@ async def photo_message(update, context):
         await import_draft(update, context, source)
     except Exception:
         logger.exception("Dialogue photo import failed")
-        await send(update, "Не удалось прочитать фото. Пришли более чёткое изображение или текст.")
+        await send(update, "Jeg kunne ikke læse billedet. Send et tydeligere foto eller teksten.")
     raise ApplicationHandlerStop
 
 
@@ -381,5 +394,5 @@ def install_dialogue_support():
         app.add_handler(MessageHandler(filters.PHOTO | filters.Document.IMAGE, photo_message), group=-4)
         return app
     telegram_bot.build_telegram_application = builder
-    telegram_bot.HELP_TEXT += "\n/dialogues — диалоги с пропусками, A–F"
+    telegram_bot.HELP_TEXT += "\n/dialogues — dialoger med huller, A–F"
     telegram_bot._dialogue_support_installed = True

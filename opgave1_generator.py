@@ -221,24 +221,24 @@ def validate_word_gap(raw, rank="C"):
         raw_value = str(normalized_type_keys[word.casefold()]).strip().casefold()
         value = type_aliases.get(raw_value, raw_value)
         if value not in allowed_types:
-            if "pronomen" in raw_value or "stedord" in raw_value or "possessiv" in raw_value:
+            if "pronomen" in raw_value or "pronoun" in raw_value or "stedord" in raw_value or "possessiv" in raw_value:
                 value = "pronoun"
-            elif "konjunktion" in raw_value or "bindeord" in raw_value or "ledsætningsindleder" in raw_value:
+            elif "konjunktion" in raw_value or "conjunction" in raw_value or "connector" in raw_value or "linker" in raw_value or "bindeord" in raw_value or "ledsætningsindleder" in raw_value:
                 value = "conjunction"
             elif "adverb" in raw_value or "biord" in raw_value:
                 value = "adverb"
-            elif "negation" in raw_value or "nægt" in raw_value:
+            elif "negation" in raw_value or "negative" in raw_value or "nægt" in raw_value:
                 value = "negation"
-            elif "verbum" in raw_value or "udsagnsord" in raw_value or "hjælpeverbum" in raw_value:
+            elif "verbum" in raw_value or "verb" in raw_value or "udsagnsord" in raw_value or "hjælpeverbum" in raw_value or "auxiliary" in raw_value or "modal" in raw_value:
                 value = "verb"
-            elif "præposition" in raw_value or "forholdsord" in raw_value:
+            elif "præposition" in raw_value or "preposition" in raw_value or "forholdsord" in raw_value:
                 value = "preposition"
-            elif "substantiv" in raw_value or "navneord" in raw_value:
+            elif "substantiv" in raw_value or "noun" in raw_value or "navneord" in raw_value:
                 value = "noun"
-            elif "adjektiv" in raw_value or "tillægsord" in raw_value:
+            elif "adjektiv" in raw_value or "adjective" in raw_value or "tillægsord" in raw_value:
                 value = "adjective"
             else:
-                raise ValueError("Неизвестный тип слова: " + raw_value)
+                value = "noun"
         clean_types[word] = value
 
     answers = raw.get("answers")
@@ -334,11 +334,16 @@ def validate_word_gap(raw, rank="C"):
         phrase = text(item.get("phrase"), 120)
         translation = text(item.get("translation_ru"), 180)
         category = text(item.get("category"), 48)
-        # A short pattern may contain inflection around the answer, so only demand
-        # that at least one meaningful token from it occurs in the completed text.
+        # Metadata must not reject an otherwise good exercise. If the model
+        # returns an abstract grammar label instead of a phrase from the text,
+        # fall back to the actual answer for this gap.
         tokens = [token.strip(".,!?;:()“”\"'").casefold() for token in phrase.split()]
         if not any(token and token in completed for token in tokens):
-            raise ValueError("Фокусная фраза не связана с текстом.")
+            answer = answers[len(clean_focus)]
+            known_translations = {p.casefold(): ru for _, p, ru, _ in FOCUS_BANK}
+            phrase = answer
+            translation = known_translations.get(answer.casefold(), translation)
+            category = clean_types.get(answer, category)
         clean_focus.append({
             "phrase": phrase,
             "translation_ru": translation,

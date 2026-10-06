@@ -538,6 +538,9 @@ async def callback(update, context):
     if not user:
         return
 
+    # Switching into Opgave 4 must release an active oral Opgave 2 session.
+    context.user_data.pop("du3_opgave2_session", None)
+
     parts = query.data.split(":")
     action = parts[1]
 

@@ -6,7 +6,7 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy import func, select
 
 from database import StudyDatabase, WordGapSession
-from opgave1_examples import EN_GAMMEL_DROEM, reserve_opgave1
+from opgave1_examples import EN_GAMMEL_DROEM, RESERVES, reserve_opgave1
 from opgave1_generator import (
     RANK_ORDER,
     WORD_TYPE_RULES,
@@ -66,6 +66,24 @@ class Opgave1ValidationTests(unittest.TestCase):
         self.assertIn("sin/sit/sine", WORD_TYPE_RULES)
         self.assertIn("som/hvor/der/hvad", WORD_TYPE_RULES)
         self.assertIn("ikke/også", WORD_TYPE_RULES)
+
+    def test_reserve_examples_are_valid_and_do_not_repeat(self):
+        titles = []
+        for raw in RESERVES:
+            data = validate_word_gap(raw, rank="C")
+            self.assertEqual(len(data["answers"]), 6)
+            self.assertEqual(len(set(data["answers"])), 6)
+            titles.append(data["title"])
+        self.assertEqual(len(titles), len(set(titles)))
+        first = reserve_opgave1("Skole og uddannelse", rank="C", recent_titles=())
+        self.assertIsNotNone(first)
+        second = reserve_opgave1(
+            "Skole og uddannelse",
+            rank="C",
+            recent_titles=(first["title"],),
+        )
+        self.assertIsNotNone(second)
+        self.assertNotEqual(first["title"], second["title"])
 
     def test_rank_order_and_source_reserve(self):
         self.assertEqual(RANK_ORDER, ("F", "E", "D", "C", "B", "A", "S"))

@@ -221,7 +221,24 @@ def validate_word_gap(raw, rank="C"):
         raw_value = str(normalized_type_keys[word.casefold()]).strip().casefold()
         value = type_aliases.get(raw_value, raw_value)
         if value not in allowed_types:
-            raise ValueError("Неизвестный тип слова: " + raw_value)
+            if "pronomen" in raw_value or "stedord" in raw_value or "possessiv" in raw_value:
+                value = "pronoun"
+            elif "konjunktion" in raw_value or "bindeord" in raw_value or "ledsætningsindleder" in raw_value:
+                value = "conjunction"
+            elif "adverb" in raw_value or "biord" in raw_value:
+                value = "adverb"
+            elif "negation" in raw_value or "nægt" in raw_value:
+                value = "negation"
+            elif "verbum" in raw_value or "udsagnsord" in raw_value or "hjælpeverbum" in raw_value:
+                value = "verb"
+            elif "præposition" in raw_value or "forholdsord" in raw_value:
+                value = "preposition"
+            elif "substantiv" in raw_value or "navneord" in raw_value:
+                value = "noun"
+            elif "adjektiv" in raw_value or "tillægsord" in raw_value:
+                value = "adjective"
+            else:
+                raise ValueError("Неизвестный тип слова: " + raw_value)
         clean_types[word] = value
 
     answers = raw.get("answers")

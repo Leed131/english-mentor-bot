@@ -59,6 +59,7 @@ def keyboard(rows):
 def menu():
     return keyboard([
         [("🎓 Som til prøven", "opg3:mode:exam"), ("💡 Øvelse", "opg3:mode:practice")],
+        [("📘 Adrian-eksemplet", "opg3:source")],
         [("▶️ Fortsæt", "opg3:resume")],
         [("⬅️ Test", "study:section:tests")],
     ])
@@ -498,7 +499,7 @@ async def callback(update, context):
     parts = data.split(":")
     action = parts[1]
 
-    if action in {"menu", "mode", "rank", "new", "topic", "more", "retry", "resume"}:
+    if action in {"menu", "mode", "rank", "new", "topic", "source", "more", "retry", "resume"}:
         await db(user, "pause")
 
     if action == "noop":
@@ -512,6 +513,16 @@ async def callback(update, context):
             "📖 Opgave 3 — læsning\nFem afsnit. I hvert afsnit mangler én sætning. Vælg den sætning, der passer til hele sammenhængen.",
             menu(),
         )
+
+    elif action == "source":
+        from opgave3_examples import ADRIAN
+        item = await db(
+            user,
+            "create",
+            data=validate_text_gap(ADRIAN, rank="C"),
+            mode="exam",
+        )
+        await show(update, item)
 
     elif action == "mode":
         mode = parts[2]

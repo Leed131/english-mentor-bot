@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy import func, select
 from database import DialogueSession, StudyDatabase
 from dialogue_generator import parse_answers, prepare_dialogue, validate_dialogue
+from dialogue_examples import du3_simon_amanda_dialogue
 from dialogue_support import db_action, exercise_text, callback, text_message, STATE
 from study_memory import StudyMemory
 from telegram.ext import ApplicationHandlerStop
@@ -27,6 +28,13 @@ def example():
 
 
 class ValidationTests(unittest.TestCase):
+    def test_du3_simon_amanda_sample(self):
+        sample = du3_simon_amanda_dialogue()
+        self.assertEqual(sample["answers"], ["C", "A", "D"])
+        self.assertEqual(sample["speakers"], ["Simon", "Amanda"])
+        self.assertIn("Skal du arbejde over?", sample["lines"][2])
+        self.assertIn("Det er lige meget.", sample["options"]["D"])
+
     def test_input_formats_and_rejections(self):
         for text in ["1D 2A 3B", "dab", "D, A, B", "1D 2А 3В"]:
             self.assertEqual(parse_answers(text), ["D", "A", "B"])

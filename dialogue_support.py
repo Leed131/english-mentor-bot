@@ -3,6 +3,7 @@ import asyncio
 import json
 import logging
 import tempfile
+from datetime import timedelta
 from pathlib import Path
 
 from sqlalchemy import select, update as sql_update
@@ -10,7 +11,7 @@ from telegram import InlineKeyboardButton as Button, InlineKeyboardMarkup as Mar
 from telegram.ext import (ApplicationHandlerStop, CallbackQueryHandler, CommandHandler,
                           MessageHandler, filters)
 
-from database import DialoguePhrase, DialogueSession
+from database import DialoguePhrase, DialoguePhraseProgress, DialogueSession, utc_now
 from dialogue_generator import (COMMON_PHRASES, LETTERS, RANKED_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue)
 from study_memory import get_study_memory
 
@@ -38,6 +39,7 @@ def menu():
         [("🎓 Som til prøven", "dialog:topics:exam"), ("💡 Øvelse", "dialog:topics:practice")],
         [("➕ Tilføj opgave", "dialog:add"), ("📚 Mine opgaver", "dialog:mine")],
         [("🔁 Øv dine fejl", "dialog:review"), ("▶️ Fortsæt", "dialog:resume")],
+        [("🧠 Svage vendinger", "dialog:weak")],
         [("⬅️ Studiemenu", "study:menu")],
     ])
 
@@ -79,6 +81,74 @@ def _seed_phrase_bank(session):
             row.active = True
 
 
+def _progress_for_phrase(session, profile_id, phrase_id):
+    row = session.scalar(
+        select(DialoguePhraseProgress).where(
+            DialoguePhraseProgress.profile_id == profile_id,
+            DialoguePhraseProgress.phrase_id == phrase_id,
+        )
+    )
+    if row is None:
+        row = DialoguePhraseProgress(profile_id=profile_id, phrase_id=phrase_id)
+        session.add(row)
+        session.flush()
+    return row
+
+
+def _review_delay_days(successful_reviews):
+    intervals = (1, 3, 7, 14, 30)
+    return intervals[min(max(successful_reviews - 1, 0), len(intervals) - 1)]
+
+
+def _apply_phrase_result(progress, verdict):
+    now = utc_now()
+    progress.last_seen = now
+    if verdict == "correct":
+        progress.seen_count += 1
+        progress.correct_count += 1
+        progress.successful_reviews += 1
+        progress.status = "mastered" if progress.successful_reviews >= 3 else "review"
+        progress.next_review = now + timedelta(days=_review_delay_days(progress.successful_reviews))
+    elif verdict == "wrong":
+        progress.seen_count += 1
+        progress.wrong_count += 1
+        progress.successful_reviews = max(0, progress.successful_reviews - 1)
+        progress.status = "weak"
+        progress.next_review = now
+    elif verdict == "unclear":
+        progress.unclear_count += 1
+        progress.successful_reviews = 0
+        progress.status = "weak"
+        progress.next_review = now
+    elif verdict == "known":
+        progress.successful_reviews += 1
+        progress.status = "mastered" if progress.successful_reviews >= 3 else "review"
+        progress.next_review = now + timedelta(days=_review_delay_days(progress.successful_reviews))
+    else:
+        raise ValueError("Ukendt vending-status.")
+
+
+def _matching_phrase_rows(session, text):
+    _seed_phrase_bank(session)
+    normalized = text.casefold()
+    return [
+        row for row in session.scalars(
+            select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
+        ).all()
+        if row.phrase.casefold() in normalized
+    ]
+
+
+def _gap_phrase_rows(session, data, index):
+    lines = data["lines"]
+    answer = data["answers"][index]
+    text = " ".join((lines[index + 2], data["options"][answer], lines[index + 3]))
+    rows = _matching_phrase_rows(session, text)
+    # One answer can contain a shorter chunk inside a longer one. Keep all useful
+    # chunks, but never count the same database phrase twice for one gap.
+    return list({row.id: row for row in rows}.values())
+
+
 def snapshot(row):
     return dict(id=row.id, data=json.loads(row.data_json), answers=json.loads(row.answers_json),
                 mode=row.mode, custom=row.custom, completed=row.completed, score=row.score)
@@ -94,13 +164,116 @@ def db_action(user_id, action, **args):
             if rank not in RANK_ORDER:
                 raise ValueError("Ukendt dialograng.")
             _seed_phrase_bank(session)
+            session.flush()
             rows = session.scalars(
                 select(DialoguePhrase).where(
                     DialoguePhrase.rank == rank,
                     DialoguePhrase.active.is_(True),
                 ).order_by(DialoguePhrase.id)
             ).all()
+            progress_rows = session.scalars(
+                select(DialoguePhraseProgress).where(
+                    DialoguePhraseProgress.profile_id == profile.id
+                )
+            ).all()
+            progress = {row.phrase_id: row for row in progress_rows}
+            now = utc_now()
+
+            def priority(row):
+                item = progress.get(row.id)
+                if item is None:
+                    return (1, 0, row.id)
+                weakness = item.wrong_count * 3 + item.unclear_count * 4 - item.correct_count
+                due = item.next_review is not None and item.next_review <= now
+                if item.status == "weak":
+                    bucket = 0
+                elif due:
+                    bucket = 1
+                elif item.status == "new":
+                    bucket = 2
+                elif item.status == "review":
+                    bucket = 3
+                else:
+                    bucket = 4
+                return (bucket, -weakness, row.id)
+
+            rows.sort(key=priority)
             return [(row.phrase, row.translation_ru) for row in rows]
+
+        if action == "phrase_cards":
+            data = args["data"]
+            _seed_phrase_bank(session)
+            session.flush()
+            haystack = " ".join(
+                list(data.get("lines", [])) + list(data.get("options", {}).values())
+            ).casefold()
+            rows = session.scalars(
+                select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
+            ).all()
+            result = []
+            for row in rows:
+                if row.phrase.casefold() not in haystack:
+                    continue
+                progress = session.scalar(
+                    select(DialoguePhraseProgress).where(
+                        DialoguePhraseProgress.profile_id == profile.id,
+                        DialoguePhraseProgress.phrase_id == row.id,
+                    )
+                )
+                result.append({
+                    "id": row.id,
+                    "phrase": row.phrase,
+                    "translation": row.translation_ru,
+                    "rank": row.rank,
+                    "status": progress.status if progress else "new",
+                })
+            return result[:5]
+
+        if action == "phrase_feedback":
+            phrase_id = int(args["phrase_id"])
+            phrase = session.get(DialoguePhrase, phrase_id)
+            if phrase is None or not phrase.active:
+                return None
+            progress = _progress_for_phrase(session, profile.id, phrase.id)
+            _apply_phrase_result(progress, args["verdict"])
+            return {
+                "phrase": phrase.phrase,
+                "translation": phrase.translation_ru,
+                "status": progress.status,
+            }
+
+        if action == "weak":
+            _seed_phrase_bank(session)
+            session.flush()
+            phrases = {row.id: row for row in session.scalars(
+                select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
+            ).all()}
+            rows = session.scalars(
+                select(DialoguePhraseProgress).where(
+                    DialoguePhraseProgress.profile_id == profile.id,
+                    DialoguePhraseProgress.status == "weak",
+                )
+            ).all()
+            rows.sort(
+                key=lambda row: (
+                    -(row.wrong_count * 3 + row.unclear_count * 4 - row.correct_count),
+                    row.id,
+                )
+            )
+            result = []
+            for row in rows[:8]:
+                phrase = phrases.get(row.phrase_id)
+                if phrase is None:
+                    continue
+                result.append({
+                    "id": phrase.id,
+                    "phrase": phrase.phrase,
+                    "translation": phrase.translation_ru,
+                    "rank": phrase.rank,
+                    "wrong": row.wrong_count,
+                    "unclear": row.unclear_count,
+                })
+            return result
         if action in {"recent", "mine", "review"}:
             if action == "mine":
                 query = query.where(DialogueSession.custom.is_(True))
@@ -158,6 +331,17 @@ def db_action(user_id, action, **args):
         combined = previous + answers
         if len(combined) > 3 or len(set(combined)) != len(combined) or any(a not in LETTERS for a in combined):
             raise ValueError("Brug forskellige bogstaver A–F.")
+
+        start_index = len(previous)
+        for offset, learner_answer in enumerate(answers):
+            gap_index = start_index + offset
+            if gap_index >= 3:
+                break
+            verdict = "correct" if learner_answer == data["answers"][gap_index] else "wrong"
+            for phrase in _gap_phrase_rows(session, data, gap_index):
+                progress = _progress_for_phrase(session, profile.id, phrase.id)
+                _apply_phrase_result(progress, verdict)
+
         row.answers_json = json.dumps(combined)
         if len(combined) == 3:
             correct = sum(a == b for a, b in zip(combined, data["answers"]))
@@ -237,10 +421,20 @@ async def grade(update, user, answers, **kwargs):
                    + item["data"]["explanations"][i])
     if item["completed"]:
         await send(update, exercise_text(item, reveal=True))
-        phrases = useful_phrases(item["data"])
-        if phrases:
-            phrase_text = "\n".join(f"• {danish} — {russian}" for danish, russian in phrases)
-            await send(update, "🗣️ Nyttige vendinger\n" + phrase_text)
+        phrase_cards = await db(user, "phrase_cards", data=item["data"])
+        if phrase_cards:
+            lines = ["🗣️ Nyttige vendinger"]
+            rows = []
+            for index, phrase in enumerate(phrase_cards, 1):
+                lines.append(
+                    f"{index}. {phrase['phrase']} — {phrase['translation']}"
+                )
+                rows.append([
+                    (f"✅ {index} Forstår", f"dialog:phrase:{phrase['id']}:known"),
+                    (f"😕 {index} Uklart", f"dialog:phrase:{phrase['id']}:unclear"),
+                ])
+            rows.append([("🧠 Svage vendinger", "dialog:weak")])
+            await send(update, "\n".join(lines), keyboard(rows))
         await send(update, f"Resultatet er gemt: {item['score']}%.", keyboard([
             [("🔄 En lignende opgave", f"dialog:more:{item['id']}")],
             [("🔁 Repetition", f"dialog:retry:{item['id']}")],
@@ -250,11 +444,11 @@ async def grade(update, user, answers, **kwargs):
         await show(update, item)
 
 
-async def generate(update, user, topic, mode, rank="C"):
+async def generate(update, user, topic, mode, rank="C", phrase_override=None):
     await send(update, "Jeg laver og tjekker en ny dialog…")
     recent = await db(user, "recent")
     situations = [r["data"]["situation"] for r in recent]
-    phrase_bank = await db(user, "phrases", rank=rank)
+    phrase_bank = phrase_override or await db(user, "phrases", rank=rank)
     try:
         data = await asyncio.wait_for(
             prepare_dialogue(topic, situations, rank=rank, phrase_bank=phrase_bank),
@@ -333,11 +527,69 @@ async def callback(update, context):
     context.user_data.pop("du3_opgave2_session", None)
     parts = data.split(":")
     action = parts[1]
-    if action in {"menu", "topics", "rank", "topic", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
+    if action in {"menu", "topics", "rank", "topic", "weak", "weaktrain", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
         context.user_data.pop(STATE, None)
         await db(user, "pause")
     if action == "menu":
         await send(update, "🧩 Dialoger — læsning", menu())
+    elif action == "weak":
+        weak = await db(user, "weak")
+        if not weak:
+            await send(
+                update,
+                "🧠 Du har ingen svage vendinger endnu. De kommer her, når du svarer forkert eller markerer en vending som Uklart.",
+                menu(),
+            )
+        else:
+            text = ["🧠 Svage vendinger"]
+            text.extend(
+                f"• {item['phrase']} — {item['translation']}"
+                for item in weak
+            )
+            await send(
+                update,
+                "\n".join(text),
+                keyboard([
+                    [("▶️ Træn svage vendinger", "dialog:weaktrain")],
+                    [("⬅️ Dialoger", "dialog:menu")],
+                ]),
+            )
+    elif action == "weaktrain":
+        weak = await db(user, "weak")
+        if not weak:
+            await send(update, "Der er ingen svage vendinger at træne.", menu())
+        else:
+            rank = max(
+                (item["rank"] for item in weak),
+                key=lambda value: RANK_ORDER.index(value),
+            )
+            phrase_bank = [
+                (item["phrase"], item["translation"]) for item in weak
+            ]
+            await generate(
+                update,
+                user,
+                "Hverdag og aftaler",
+                "practice",
+                rank,
+                phrase_override=phrase_bank,
+            )
+    elif action == "phrase" and len(parts) == 4 and parts[2].isdigit():
+        verdict = parts[3]
+        if verdict not in {"known", "unclear"}:
+            raise ApplicationHandlerStop
+        result = await db(
+            user,
+            "phrase_feedback",
+            phrase_id=int(parts[2]),
+            verdict=verdict,
+        )
+        if result:
+            label = "✅ Gemmer som forstået" if verdict == "known" else "😕 Gemmer som uklar"
+            await send(
+                update,
+                f"{label}: {result['phrase']}\nStatus: {result['status']}",
+            )
     elif action == "a1":
         await telegram_bot._start_quiz(update, "test")
     elif action == "topics":

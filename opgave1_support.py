@@ -23,6 +23,8 @@ from study_memory import get_study_memory
 logger = logging.getLogger(__name__)
 
 STATE = "opgave1_input"
+PICKS = "opgave1_picks"
+TARGET = "opgave1_target"
 
 TOPICS = [
     "Arbejde og hverdag",
@@ -300,6 +302,50 @@ def db_action(user_id, action, **args):
             _apply(item, args["verdict"])
             return {"phrase": phrase.phrase, "status": item.status}
 
+        if action == "submit_all":
+            row = session.scalar(
+                query.where(
+                    WordGapSession.id == args["id"],
+                    WordGapSession.completed.is_(False),
+                ).with_for_update()
+            )
+            if row is None:
+                return None
+            data = json.loads(row.data_json)
+            answers = list(args["answers"])
+            if len(answers) != 6 or any(answer not in data["word_bank"] for answer in answers):
+                raise ValueError("Vælg ét ord til alle seks huller.")
+            if len(set(answers)) != 6:
+                raise ValueError("Hvert ord må kun bruges én gang.")
+
+            for index, learner_answer in enumerate(answers):
+                correct = data["answers"][index]
+                verdict = "correct" if learner_answer.casefold() == correct.casefold() else "wrong"
+                focus_row = _focus_row(session, data, index)
+                _apply(_progress(session, profile.id, focus_row.id), verdict)
+
+            row.answers_json = json.dumps(answers, ensure_ascii=False)
+            correct_count = sum(
+                learner.casefold() == expected.casefold()
+                for learner, expected in zip(answers, data["answers"])
+            )
+            row.completed = True
+            row.active = False
+            row.score = round(correct_count / 6 * 100)
+            memory._record_activity(
+                session,
+                profile,
+                "tests",
+                "Opgave 1: " + data["topic"],
+                row.score,
+                correct_count,
+                6 - correct_count,
+                {"opgave1_id": row.id, "answers": answers},
+                "Opgave 1: en lignende tekst eller repetition",
+            )
+            session.flush()
+            return snapshot(row)
+
         active_query = query.where(
             WordGapSession.active.is_(True),
             WordGapSession.completed.is_(False),
@@ -387,28 +433,84 @@ def exercise_text(item, reveal=False):
     return " ".join(pieces).replace(" \n", "\n").replace("\n ", "\n")
 
 
-def answer_keyboard(item):
-    index = len(item["answers"])
-    used = set(item["answers"])
-    available = [word for word in item["data"]["word_bank"] if word not in used]
-    rows = []
-    for start in range(0, len(available), 3):
-        rows.append([
-            (word, f"opg1:answer:{item['id']}:{index}:{word}")
-            for word in available[start:start + 3]
+def _picker_state(context, item_id):
+    all_picks = context.user_data.setdefault(PICKS, {})
+    raw = all_picks.get(str(item_id), {})
+    return {int(index): word for index, word in raw.items() if str(index).isdigit()}
+
+
+def _save_picker_state(context, item_id, picks):
+    all_picks = context.user_data.setdefault(PICKS, {})
+    all_picks[str(item_id)] = {str(index): word for index, word in picks.items()}
+
+
+def picker_text(item, picks):
+    data = item["data"]
+    segments = data["segments"]
+    pieces = [f"📝 Opgave 1 · Rang {data.get('rank', 'C')}", data["title"], "", segments[0]]
+    for index in range(6):
+        fill = picks.get(index)
+        pieces.extend([
+            f"[{index + 1}: {fill if fill else '_____'}]",
+            segments[index + 1],
         ])
+    pieces.extend([
+        "",
+        "Ordboks: " + " · ".join(data["word_bank"]),
+        "",
+        "Vælg først hul 1–6, og vælg derefter et ord. Du kan ændre svaret, før du trykker Tjek svar.",
+    ])
+    return " ".join(pieces).replace(" \n", "\n").replace("\n ", "\n")
+
+
+def picker_keyboard(item, picks=None, target=None):
+    picks = dict(picks or {})
+    rows = []
+    number_row = []
+    for index in range(6):
+        if target == index:
+            label = f"👉 {index + 1}"
+        elif index in picks:
+            label = f"✅ {index + 1}"
+        else:
+            label = str(index + 1)
+        number_row.append((label, f"opg1:gap:{item['id']}:{index}"))
+    rows.append(number_row)
+
+    if target is not None:
+        current = picks.get(target)
+        used_elsewhere = {word for index, word in picks.items() if index != target}
+        word_buttons = []
+        for word in item["data"]["word_bank"]:
+            if word == current:
+                word_buttons.append((f"✅ {word}", f"opg1:word:{item['id']}:{target}:{word}"))
+            elif word in used_elsewhere:
+                word_buttons.append((f"· {word}", f"opg1:word:{item['id']}:{target}:{word}"))
+            else:
+                word_buttons.append((word, f"opg1:word:{item['id']}:{target}:{word}"))
+        for start in range(0, len(word_buttons), 3):
+            rows.append(word_buttons[start:start + 3])
+
+    if len(picks) == 6:
+        rows.append([("✅ Tjek svar", f"opg1:submit:{item['id']}")])
+    else:
+        rows.append([(f"Valgt {len(picks)}/6", "opg1:noop")])
     rows.append([("⬅️ Opgave 1", "opg1:menu")])
     return keyboard(rows)
 
 
-async def show(update, item):
+async def show(update, item, context=None):
     if item["completed"]:
         return
-    index = len(item["answers"])
+    if context is None:
+        await send(update, exercise_text(item), keyboard([[("⬅️ Opgave 1", "opg1:menu")]]))
+        return
+    picks = _picker_state(context, item["id"])
+    target = context.user_data.get(TARGET, {}).get(str(item["id"]))
     await send(
         update,
-        exercise_text(item) + f"\n\nVælg ord til hul {index + 1}/6:",
-        answer_keyboard(item),
+        picker_text(item, picks),
+        picker_keyboard(item, picks, target),
     )
 
 
@@ -431,6 +533,26 @@ async def completed_view(update, user, item):
         [("🔁 Repetition", f"opg1:retry:{item['id']}")],
         [("⬅️ Opgave 1", "opg1:menu")],
     ]))
+
+
+async def grade_all(update, user, item_id, answers):
+    try:
+        item = await db(user, "submit_all", id=item_id, answers=answers)
+    except ValueError as error:
+        await send(update, str(error))
+        return
+    if not item:
+        await send(update, "Opgaven er ikke aktiv længere.", menu())
+        return
+    for gap_index, learner in enumerate(item["answers"]):
+        expected = item["data"]["answers"][gap_index]
+        icon = "✅" if learner.casefold() == expected.casefold() else "❌"
+        await send(
+            update,
+            f"{icon} Hul {gap_index + 1}: dit svar {learner}, rigtigt svar {expected}.\n\n"
+            + item["data"]["explanations_ru"][gap_index],
+        )
+    await completed_view(update, user, item)
 
 
 async def grade(update, user, answer, item_id, index):
@@ -468,7 +590,7 @@ async def grade(update, user, answer, item_id, index):
         await show(update, item)
 
 
-async def generate(update, user, topic, mode, rank):
+async def generate(update, user, topic, mode, rank, context=None):
     await send(update, "Jeg laver og kontrollerer en ny Opgave 1… Det tager højst ca. 35 sekunder.")
     recent = await db(user, "recent")
     recent_titles = [item["data"]["title"] for item in recent]
@@ -498,7 +620,7 @@ async def generate(update, user, topic, mode, rank):
             await send(update, "Her er en gennemgået opgave af samme type.")
 
     item = await db(user, "create", data=data, mode=mode)
-    await show(update, item)
+    await show(update, item, context)
 
 
 async def callback(update, context):
@@ -518,8 +640,74 @@ async def callback(update, context):
     if action in {"menu", "mode", "rank", "new", "topic", "source", "more", "retry", "resume"}:
         await db(user, "pause")
 
+    if action == "noop":
+        raise ApplicationHandlerStop
+
+    if action == "gap" and len(parts) == 4 and parts[2].isdigit() and parts[3].isdigit():
+        item_id = int(parts[2])
+        target = int(parts[3])
+        if target not in range(6):
+            raise ApplicationHandlerStop
+        item = await db(user, "get", id=item_id)
+        if not item or item["completed"]:
+            await send(update, "Opgaven er ikke aktiv længere.", menu())
+            raise ApplicationHandlerStop
+        targets = context.user_data.setdefault(TARGET, {})
+        targets[str(item_id)] = target
+        picks = _picker_state(context, item_id)
+        try:
+            await query.edit_message_text(
+                text=picker_text(item, picks),
+                reply_markup=picker_keyboard(item, picks, target),
+            )
+        except Exception:
+            logger.exception("Could not refresh Opgave 1 gap picker")
+        raise ApplicationHandlerStop
+
+    if action == "word" and len(parts) >= 5 and parts[2].isdigit() and parts[3].isdigit():
+        item_id = int(parts[2])
+        target = int(parts[3])
+        word = ":".join(parts[4:])
+        item = await db(user, "get", id=item_id)
+        if not item or item["completed"] or word not in item["data"]["word_bank"]:
+            raise ApplicationHandlerStop
+        picks = _picker_state(context, item_id)
+        # A bank word may only be used once. Selecting a used word moves it.
+        for other_index, other_word in list(picks.items()):
+            if other_index != target and other_word == word:
+                picks.pop(other_index, None)
+        picks[target] = word
+        _save_picker_state(context, item_id, picks)
+
+        empty = [index for index in range(6) if index not in picks]
+        next_target = empty[0] if empty else target
+        targets = context.user_data.setdefault(TARGET, {})
+        targets[str(item_id)] = next_target
+        try:
+            await query.edit_message_text(
+                text=picker_text(item, picks),
+                reply_markup=picker_keyboard(item, picks, next_target),
+            )
+        except Exception:
+            logger.exception("Could not refresh Opgave 1 word picker")
+        raise ApplicationHandlerStop
+
+    if action == "submit" and len(parts) == 3 and parts[2].isdigit():
+        item_id = int(parts[2])
+        picks = _picker_state(context, item_id)
+        if set(picks) != set(range(6)):
+            await send(update, "Vælg først ét ord til alle seks huller.")
+            raise ApplicationHandlerStop
+        answers = [picks[index] for index in range(6)]
+        await grade_all(update, user, item_id, answers)
+        context.user_data.get(PICKS, {}).pop(str(item_id), None)
+        context.user_data.get(TARGET, {}).pop(str(item_id), None)
+        raise ApplicationHandlerStop
+
     if action == "menu":
         context.user_data.pop(STATE, None)
+        context.user_data.pop(PICKS, None)
+        context.user_data.pop(TARGET, None)
         await send(
             update,
             "📝 Opgave 1 — manglende ord\nLæs teksten lokalt og vælg seks ord fra en boks med ti. Hvert ord må kun bruges én gang.",
@@ -549,7 +737,7 @@ async def callback(update, context):
             data=validate_word_gap(EN_GAMMEL_DROEM, rank="C"),
             mode="exam",
         )
-        await show(update, item)
+        await show(update, item, context)
 
     elif action == "mode":
         mode = parts[2]
@@ -575,7 +763,7 @@ async def callback(update, context):
         if mode in {"exam", "practice"} and rank in RANK_ORDER and index.isdigit():
             topic_index = int(index)
             if topic_index < len(TOPICS):
-                await generate(update, user, TOPICS[topic_index], mode, rank)
+                await generate(update, user, TOPICS[topic_index], mode, rank, context)
 
     elif action == "answer" and len(parts) >= 5:
         item_id, index = parts[2], parts[3]
@@ -586,7 +774,7 @@ async def callback(update, context):
     elif action == "resume":
         item = await db(user, "resume")
         if item:
-            await show(update, item)
+            await show(update, item, context)
         else:
             await send(update, "Der er ingen ufærdig Opgave 1.", menu())
 
@@ -596,7 +784,7 @@ async def callback(update, context):
             await send(update, "Opgaven findes ikke længere.", menu())
         elif action == "retry":
             repeated = await db(user, "create", data=item["data"], mode=item["mode"])
-            await show(update, repeated)
+            await show(update, repeated, context)
         else:
             await generate(
                 update,
@@ -604,6 +792,7 @@ async def callback(update, context):
                 item["data"]["topic"],
                 item["mode"],
                 item["data"].get("rank", "C"),
+                context,
             )
 
     elif action == "phrase" and len(parts) == 4 and parts[2].isdigit():
@@ -674,7 +863,7 @@ async def text_message(update, context):
         await send(update, "Skriv et emne på højst 160 tegn.")
     else:
         context.user_data.pop(STATE, None)
-        await generate(update, user, text, state["mode"], state["rank"])
+        await generate(update, user, text, state["mode"], state["rank"], context)
     raise ApplicationHandlerStop
 
 

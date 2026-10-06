@@ -76,6 +76,7 @@ SCHEMA = """Return JSON only:
   "topic":"short Danish topic",
   "segments":["text before gap 1","between gap 1 and 2","...","text after gap 6"],
   "word_bank":["word1","word2","word3","word4","word5","word6","unused1","unused2","unused3","unused4"],
+  "word_types":{"word1":"conjunction","word2":"adverb","word3":"verb","word4":"noun"},
   "answers":["word for gap1","word for gap2","word for gap3","word for gap4","word for gap5","word for gap6"],
   "explanations_ru":["why gap1 fits","... six explanations"],
   "focus":[
@@ -84,6 +85,15 @@ SCHEMA = """Return JSON only:
 }
 Exactly 7 non-empty segments, forming ONE coherent Danish everyday text when the six answers are inserted.
 Exactly 10 distinct single-word choices in word_bank. Exactly 6 distinct answers; each answer appears in word_bank and is used once. Exactly 4 words are unused.
+word_types must classify EVERY bank word with exactly one of: conjunction, adverb, negation, verb, pronoun, preposition, noun, adjective.
+At rank C, the bank should normally resemble real mixed grammar/vocabulary tasks rather than a vocabulary list:
+- at least 2 conjunctions/connectors;
+- at least 2 items from adverb/negation;
+- at least 1 verb;
+- at least 1 content word from noun/adjective;
+- the 6 correct answers must span at least 4 different word types.
+Unused words should usually include same-type distractors (for example another conjunction/adverb/verb), not four unrelated nouns.
+At B-S, make at least three unused words belong to types that also occur among the correct answers.
 Exactly 6 Russian explanations and exactly 6 focus objects.
 Every gap must be uniquely solvable from its local sentence/clause plus the global one-use-only rule.
 Do not make capitalization reveal the answer. Put punctuation in segments, not in word_bank.
@@ -120,6 +130,23 @@ def validate_word_gap(raw, rank="C"):
     if len(set(normalized_bank)) != 10:
         raise ValueError("Слова в банке повторяются.")
 
+    word_types = raw.get("word_types")
+    if not isinstance(word_types, dict):
+        raise ValueError("Нужны типы для всех слов.")
+    allowed_types = {
+        "conjunction", "adverb", "negation", "verb",
+        "pronoun", "preposition", "noun", "adjective",
+    }
+    normalized_type_keys = {key.casefold(): value for key, value in word_types.items()}
+    if set(normalized_type_keys) != set(normalized_bank):
+        raise ValueError("Тип должен быть указан для каждого слова из банка.")
+    clean_types = {}
+    for word in word_bank:
+        value = normalized_type_keys[word.casefold()]
+        if value not in allowed_types:
+            raise ValueError("Неизвестный тип слова.")
+        clean_types[word] = value
+
     answers = raw.get("answers")
     if not isinstance(answers, list) or len(answers) != 6:
         raise ValueError("Нужно шесть ответов.")
@@ -130,6 +157,28 @@ def validate_word_gap(raw, rank="C"):
     if any(value.casefold() not in lookup for value in answers):
         raise ValueError("Ответ отсутствует в банке слов.")
     answers = [lookup[value.casefold()] for value in answers]
+
+    bank_types = [clean_types[word] for word in word_bank]
+    answer_types = [clean_types[word] for word in answers]
+    if rank in {"C", "B", "A", "S"}:
+        if bank_types.count("conjunction") < 2:
+            raise ValueError("На этом уровне нужны как минимум два союза/связки.")
+        if sum(t in {"adverb", "negation"} for t in bank_types) < 2:
+            raise ValueError("На этом уровне нужны наречия/отрицание.")
+        if "verb" not in bank_types:
+            raise ValueError("На этом уровне нужен хотя бы один глагол.")
+        if not any(t in {"noun", "adjective"} for t in bank_types):
+            raise ValueError("На этом уровне нужно хотя бы одно знаменательное слово.")
+        if len(set(answer_types)) < 4:
+            raise ValueError("Правильные ответы должны проверять разные типы слов.")
+    if rank in {"B", "A", "S"}:
+        unused = [word for word in word_bank if word not in answers]
+        answer_type_set = set(answer_types)
+        same_type_distractors = sum(
+            clean_types[word] in answer_type_set for word in unused
+        )
+        if same_type_distractors < 3:
+            raise ValueError("Слишком предсказуемые лишние слова.")
 
     explanations = raw.get("explanations_ru")
     if not isinstance(explanations, list) or len(explanations) != 6:
@@ -164,6 +213,7 @@ def validate_word_gap(raw, rank="C"):
         "rank": rank,
         "segments": segments,
         "word_bank": word_bank,
+        "word_types": clean_types,
         "answers": answers,
         "explanations_ru": explanations,
         "focus": clean_focus,
@@ -233,6 +283,8 @@ async def prepare_word_gap(topic, rank="C", recent_titles=(), phrase_bank=None):
             prompt = (
                 "Create a NEW Danish word-bank gap exercise in the same structural style as DU3 Modul 3 local-cohesion reading: "
                 "one coherent everyday text, six missing single words, ten choices, each word usable at most once, four unused. "
+                "The bank must be a deliberate MIX of word types, not a random vocabulary list. At exam level C, prioritize "
+                "connectors/conjunctions, adverbs/negation, verbs/auxiliaries and only a small number of content words. "
                 + RANK_GUIDANCE[rank] + " " + unpredictability +
                 "Useful structures may be inspired by this learning-priority list, especially earlier items, but do not force "
                 "them and do not simply copy the list into the bank: "

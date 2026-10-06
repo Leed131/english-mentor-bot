@@ -13,6 +13,7 @@ from telegram.ext import (ApplicationHandlerStop, CallbackQueryHandler, CommandH
 
 from database import DialoguePhrase, DialoguePhraseProgress, DialogueSession, utc_now
 from dialogue_generator import (COMMON_PHRASES, LETTERS, RANKED_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue)
+from speech import generate_dialogue_speech
 from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
@@ -454,6 +455,19 @@ def useful_phrases(data, limit=5):
     return result
 
 
+def dialogue_audio_turns(data):
+    """Return the fully solved dialogue in speaking order for two-voice TTS."""
+    lines = data["lines"]
+    answers = data["answers"]
+    options = data["options"]
+    turns = [(0, lines[0]), (1, lines[1])]
+    for index in range(3):
+        turns.append((0, lines[index + 2]))
+        turns.append((1, options[answers[index]]))
+    turns.append((0, lines[5]))
+    return turns
+
+
 def exercise_text(item, reveal=False):
     data = item["data"]
     a, b = data["speakers"]
@@ -531,6 +545,7 @@ async def grade(update, user, answers, **kwargs):
             rows.append([("🧠 Svage vendinger", "dialog:weak")])
             await send(update, "\n".join(lines), keyboard(rows))
         await send(update, f"Resultatet er gemt: {item['score']}%.", keyboard([
+            [("🔊 Lyt til dialogen", f"dialog:listen:{item['id']}")],
             [("🔄 En lignende opgave", f"dialog:more:{item['id']}")],
             [("🔁 Repetition", f"dialog:retry:{item['id']}")],
             [("⬅️ Dialoger", "dialog:menu")],
@@ -727,6 +742,47 @@ async def callback(update, context):
                 update,
                 f"{label}: {result['phrase']}\nStatus: {result['status']}",
             )
+    elif action == "listen" and len(parts) == 3 and parts[2].isdigit():
+        item = await db(user, "get", id=int(parts[2]))
+        if not item or not item["completed"]:
+            await send(
+                update,
+                "Lyd til hele dialogen bliver først tilgængelig, når opgaven er afsluttet.",
+                menu(),
+            )
+        else:
+            await send(update, "🔊 Jeg laver lyd til den færdige dialog…")
+            audio_path = None
+            try:
+                audio_path = await asyncio.wait_for(
+                    generate_dialogue_speech(dialogue_audio_turns(item["data"])),
+                    timeout=90,
+                )
+                message = update.effective_message
+                if message is None:
+                    raise RuntimeError("Telegram message is unavailable")
+                speakers = item["data"]["speakers"]
+                with open(audio_path, "rb") as audio_file:  # noqa: ASYNC230
+                    await message.reply_audio(
+                        audio=audio_file,
+                        title=f"Dialog: {speakers[0]} og {speakers[1]}",
+                        caption=(
+                            "🔊 Hele den korrekte dialog på dansk.\n"
+                            "🤖 Stemmerne er AI-genererede og ikke menneskelige."
+                        ),
+                    )
+            except Exception:
+                logger.exception("Dialogue TTS failed")
+                await send(
+                    update,
+                    "Jeg kunne ikke lave lyden lige nu. Prøv igen om lidt.",
+                )
+            finally:
+                if audio_path:
+                    try:
+                        Path(audio_path).unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("Could not remove dialogue audio file")
     elif action == "a1":
         await telegram_bot._start_quiz(update, "test")
     elif action == "topics":

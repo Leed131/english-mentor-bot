@@ -341,6 +341,37 @@ class DialoguePhrase(Base):
     )
 
 
+class DialoguePhraseProgress(Base):
+    __tablename__ = "dialogue_phrase_progress"
+    __table_args__ = (
+        UniqueConstraint(
+            "profile_id", "phrase_id", name="uq_profile_dialogue_phrase"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    profile_id: Mapped[int] = mapped_column(
+        ForeignKey("learner_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    phrase_id: Mapped[int] = mapped_column(
+        ForeignKey("dialogue_phrases.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    seen_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    correct_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    wrong_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    unclear_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    successful_reviews: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="new")
+    last_seen: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    next_review: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+
+
 class VerbReviewAttempt(Base):
     __tablename__ = "verb_review_attempts"
 

@@ -8,6 +8,26 @@ from quiz_generator import _get_client, _model
 logger = logging.getLogger(__name__)
 
 LETTERS = "ABCDEF"
+
+# High-frequency spoken Danish worth meeting again and again across different
+# everyday situations. The generator is asked to reuse these naturally so the
+# learner practises chunks, not only one-off vocabulary.
+COMMON_PHRASES = (
+    ("Godt spørgsmål", "Хороший вопрос"),
+    ("Jeg bliver forsinket", "Я задерживаюсь"),
+    ("Skal jeg så", "Тогда мне…?"),
+    ("Det må du meget gerne", "Да, пожалуйста / с удовольствием"),
+    ("Hvad har du lyst til", "Что тебе хочется?"),
+    ("Det er lige meget", "Всё равно / неважно"),
+    ("Bare jeg får", "Лишь бы я получил(а)…"),
+    ("Det lyder godt", "Звучит хорошо"),
+    ("Det passer fint", "Это отлично подходит"),
+    ("Det skal jeg nok", "Я это сделаю / обязательно"),
+    ("Det ved jeg ikke endnu", "Я пока не знаю"),
+    ("Så gør vi det", "Тогда так и сделаем"),
+    ("Jeg har først fri", "Я освобожусь только…"),
+    ("Vi ses senere", "Увидимся позже"),
+)
 SCHEMA = '''Return JSON only:
 {"topic":"short everyday topic IN DANISH", "situation":"Danish context",
  "speakers":["Anna","Bo"],
@@ -110,7 +130,14 @@ async def prepare_dialogue(topic, recent=(), source=None):
         try:
             instruction = ("Transcribe this supplied exercise faithfully. Preserve all visible Danish lines and options. "
                            "Ignore handwritten guesses when solving. If illegible/incomplete, return {\"error\":\"unreadable\"}. "
-                           if source else "Create a NEW original exercise; vary names, vocabulary and logical connections. ")
+                           if source else (
+                               "Create a NEW original exercise; vary names, vocabulary and logical connections. "
+                               "The main learning goal is reusable everyday Danish. Naturally reuse at least TWO, "
+                               "preferably THREE, high-frequency chunks from this phrase bank across the dialogue: "
+                               + "; ".join(phrase for phrase, _ in COMMON_PHRASES) + ". "
+                               "Do not force a phrase where it does not fit; choose phrases appropriate to the situation. "
+                               "It is GOOD for the same useful chunks to recur in different exercises so the learner automatizes them. "
+                           ))
             if previous is not None:
                 instruction += ("Repair the previous candidate using the rejection feedback. Make the preceding and "
                                 "following lines disambiguate each reply. Do not merely change the answer key. "

@@ -38,6 +38,7 @@ async def run_bots() -> None:
 
     from dialogue_support import install_dialogue_support
     from discord_bot import run_discord_bot
+    from opgave1_support import install_opgave1_support
     from opgave3_support import install_opgave3_support
     from opgave4_support import install_opgave4_support
     from du3_opgave2_support import install_du3_opgave2_support
@@ -50,6 +51,7 @@ async def run_bots() -> None:
     install_telegram_image_support()
     install_topic_quiz_support()
     install_du3_opgave2_support()
+    install_opgave1_support()
     install_opgave3_support()
     install_opgave4_support()
     install_dialogue_support()

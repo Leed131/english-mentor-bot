@@ -9,6 +9,7 @@ from database import StudyDatabase, WordGapSession
 from opgave1_examples import EN_GAMMEL_DROEM, reserve_opgave1
 from opgave1_generator import (
     RANK_ORDER,
+    WORD_TYPE_RULES,
     completed_text,
     prepare_word_gap,
     validate_word_gap,
@@ -45,6 +46,13 @@ class Opgave1ValidationTests(unittest.TestCase):
         self.assertIn("har også været", text)
         self.assertIn("har travlt med at", text)
         self.assertIn("sin egen butik", text)
+
+    def test_word_type_rules_cover_exam_patterns(self):
+        self.assertIn("for + main-clause word order versus fordi", WORD_TYPE_RULES)
+        self.assertIn("han/ham", WORD_TYPE_RULES)
+        self.assertIn("sin/sit/sine", WORD_TYPE_RULES)
+        self.assertIn("som/hvor/der/hvad", WORD_TYPE_RULES)
+        self.assertIn("ikke/også", WORD_TYPE_RULES)
 
     def test_rank_order_and_source_reserve(self):
         self.assertEqual(RANK_ORDER, ("F", "E", "D", "C", "B", "A", "S"))
@@ -140,6 +148,8 @@ class Opgave1GenerationTests(unittest.IsolatedAsyncioTestCase):
         prompt = calls.call_args_list[0].args[1]
         self.assertIn("same grammatical", prompt)
         self.assertIn("one-use-only", prompt)
+        self.assertIn("grammar/reference words must dominate", prompt)
+        self.assertIn("for + main-clause word order versus fordi", prompt)
 
 
 if __name__ == "__main__":

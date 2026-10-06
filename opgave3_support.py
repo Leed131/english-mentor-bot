@@ -271,6 +271,8 @@ def db_action(user_id, action, **args):
 
         data = json.loads(row.data_json)
         previous = json.loads(row.answers_json)
+        if args.get("index", len(previous)) != len(previous):
+            return None
         answers = args["answers"]
         if row.mode == "exam":
             if previous or len(answers) != 5:

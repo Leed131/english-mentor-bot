@@ -19,6 +19,19 @@ from study_memory import StudyMemory
 
 
 class Opgave1ValidationTests(unittest.TestCase):
+    def test_generated_gap_template_is_parsed(self):
+        raw = dict(EN_GAMMEL_DROEM)
+        raw.pop("segments")
+        raw["text_with_gaps"] = (
+            "Hun kender børnetøj, [[1]] hun har arbejdet i en butik. "
+            "Hun har [[2]] været i en skobutik. [[3]] i hendes butik er der kun tøj. "
+            "Der [[4]] er kemikalier i tøjet. Lige nu [[5]] hun travlt. "
+            "Hun er glad for sin egen [[6]]."
+        )
+        data = validate_word_gap(raw, rank="C")
+        self.assertEqual(len(data["segments"]), 7)
+        self.assertIn("hun har arbejdet", data["segments"][1])
+
     def test_source_answers_match_user_sheet(self):
         data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
         self.assertEqual(

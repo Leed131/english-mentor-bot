@@ -11,60 +11,102 @@ RANK_ORDER = ("F", "E", "D", "C", "B", "A", "S")
 
 RANK_GUIDANCE = {
     "F": (
-        "Very easy A1. Six gaps. Use very common pronouns, conjunctions, negation, simple verbs and nouns. "
-        "The local grammar should make most answers quite clear."
+        "Very easy A1. Six gaps. Use a balanced mix of common personal pronouns, simple conjunctions, "
+        "negation, one easy verb and one easy content word. The local grammar should make answers clear."
     ),
     "E": (
-        "Easy A1/A2. Use simple function words and common everyday vocabulary. Include a few distractors of the same "
-        "part of speech, but keep the surrounding sentence explicit."
+        "Easy A1/A2. Prefer grammar words over vocabulary: personal/possessive pronouns, conjunctions, "
+        "at/når, ikke/også, plus at most two verbs or nouns. Distractors may share a part of speech."
     ),
     "D": (
-        "A2. Mix conjunctions, adverbs, pronouns, auxiliaries and one or two content words. The learner must read the "
-        "whole sentence, not only the word immediately before the gap."
+        "A2. Use pronoun case and possession (han/ham, hun/hende, de/dem, sin/sit/sine vs hans/hendes/deres), "
+        "connectors and subordinate-clause starters, adverbs/negation, and at most two content words."
     ),
     "C": (
-        "DU3 Modul 3 baseline. Use six gaps and ten single-word choices, four unused. Test local text cohesion and "
-        "grammar in context: conjunctions, adverbs, negation, pronouns, verb forms and occasional nouns. "
-        "Several unused choices should be grammatically plausible somewhere, but only one global assignment is correct."
+        "DU3 Modul 3 baseline. At least FOUR of the six answers must be grammar/cohesion words rather than content "
+        "vocabulary. Strongly sample from: personal and possessive pronouns; men/og/for/fordi/selvom; at/når/da/mens; "
+        "som/hvor/hvad/der; ikke/også/derfor; plus only one or two verb/adjective/noun items. Test word order and reference."
     ),
     "B": (
-        "Strong B1. Make distractors less predictable. Use several words from similar grammatical categories, and make "
-        "the correct choice depend on meaning plus syntax, not merely one obvious collocation."
+        "Strong B1. At least FIVE answers should be grammar/cohesion words. Use close same-class contrasts such as "
+        "for vs fordi, men vs selvom, han vs ham, de vs dem, sin vs hendes/deres, som vs hvor/der, and at vs når/da. "
+        "Meaning plus syntax must decide the answer."
     ),
     "A": (
-        "B1+/B2. Use close adverb/conjunction/pronoun distractors and natural sentence structure. At least some gaps "
-        "should have two locally plausible choices until the learner considers the wider clause or the one-use-only rule."
+        "B1+/B2. Mostly function/reference words with subtle same-class distractors. Some gaps should remain locally "
+        "plausible until the learner checks clause type, antecedent, word order, or the one-use-only rule."
     ),
     "S": (
-        "Extra challenge around B2. Keep all ten choices natural and similar in register. Avoid giveaway vocabulary. "
-        "Require precise local cohesion, reference, negation, word order and global elimination while preserving one unique solution."
+        "Extra challenge around B2. Almost all answers should test grammatical reference/cohesion rather than obvious "
+        "vocabulary. Use natural close distractors and require precise pronoun reference, main/subordinate-clause word order, "
+        "negation/adverb placement and global elimination while preserving one unique solution."
     ),
 }
 
+WORD_TYPE_RULES = """
+The analysed training sheets show that this task primarily tests GRAMMAR WORDS IN CONTEXT, not random vocabulary.
+Across a normal C-level task, distribute the six correct answers approximately like this:
+- 1–2 personal/object pronouns: han, hun, de, vi, jeg, ham, hende, dem, jer.
+- 1–2 possessive/reflexive possessives: sin, sit, sine, hans, hendes, deres, vores, min, din.
+- 2–3 connectors / clause starters / relative words: og, men, for, fordi, selvom, at, når, da, mens, som, hvor, hvad, der.
+- 0–2 adverbs/determiners: ikke, også, aldrig, allerede, derfor, hver.
+- 0–2 inflected verbs or content words: har, tager, arbejder, holder, færdig, opgave, gæster, butik.
+Do not mechanically satisfy every category in every task; keep the text natural. But at C-S grammar/reference words must dominate.
+Important distinctions seen in source exercises:
+- for + main-clause word order versus fordi + subordinate-clause word order;
+- men + main clause versus selvom + subordinate clause;
+- han/ham, hun/hende, de/dem;
+- sin/sit/sine versus hans/hendes/deres according to the subject/owner;
+- som/hvor/der/hvad according to reference and clause role;
+- at/når/da/mens according to clause meaning;
+- placement and meaning of ikke/også;
+- a smaller number of verb/noun/adjective gaps to prevent pure rule matching.
+Unused words should usually be plausible members of the SAME grammatical categories as the answers.
+""".strip()
+
+
 # Helpful reusable structures. These are learning priorities, not mandatory answers.
 FOCUS_BANK = (
-    ("F", "fordi", "потому что", "forbinder"),
-    ("F", "men", "но", "forbinder"),
-    ("F", "og", "и", "forbinder"),
-    ("F", "ikke", "не", "negation"),
+    ("F", "fordi", "потому что", "ledsætningskonjunktion"),
+    ("F", "men", "но", "hovedsætningskonjunktion"),
+    ("F", "og", "и", "hovedsætningskonjunktion"),
+    ("F", "ikke", "не", "adverbium/negation"),
     ("F", "også", "тоже / также", "adverbium"),
+    ("F", "han", "он", "personligt pronomen"),
+    ("F", "hun", "она", "personligt pronomen"),
+    ("F", "de", "они", "personligt pronomen"),
+    ("E", "ham", "его / ему", "objektpronomen"),
+    ("E", "hende", "её / ей", "objektpronomen"),
+    ("E", "dem", "их / им", "objektpronomen"),
+    ("E", "sin", "свой / своя", "refleksivt possessivt pronomen"),
+    ("E", "sit", "своё", "refleksivt possessivt pronomen"),
+    ("E", "sine", "свои", "refleksivt possessivt pronomen"),
+    ("E", "hendes", "её", "possessivt pronomen"),
+    ("E", "deres", "их", "possessivt pronomen"),
+    ("E", "at", "что / чтобы", "ledsætningsindleder"),
+    ("E", "når", "когда (обычно/в будущем)", "ledsætningsindleder"),
     ("E", "har travlt med at", "быть занятым тем, что…", "mønster"),
     ("E", "sin egen", "свой собственный / своя собственная", "mønster"),
-    ("E", "både ... og", "и … и / как … так и", "mønster"),
-    ("E", "lige nu", "прямо сейчас", "tid"),
-    ("D", "derfor", "поэтому", "forbinder"),
-    ("D", "selvom", "хотя", "forbinder"),
+    ("D", "for", "потому что / ведь", "hovedsætningskonjunktion"),
+    ("D", "selvom", "хотя", "ledsætningskonjunktion"),
+    ("D", "da", "когда (в прошлом)", "ledsætningsindleder"),
+    ("D", "mens", "пока / в то время как", "ledsætningsindleder"),
+    ("D", "som", "который / которая", "relativt pronomen"),
+    ("D", "hvor", "где / в котором месте", "relativt/spørgeord"),
+    ("D", "hvad", "что / то, что", "spørgeord"),
+    ("D", "der", "который / там / формальное der", "relativt/formelt pronomen"),
+    ("D", "derfor", "поэтому", "adverbium/forbinder"),
     ("D", "heller ikke", "тоже не", "negation"),
     ("D", "aldrig", "никогда", "adverbium"),
     ("D", "allerede", "уже", "adverbium"),
-    ("C", "nemlig", "ведь / а именно", "forbinder"),
-    ("C", "på den måde", "таким образом", "forbinder"),
-    ("C", "siden", "с тех пор как / поскольку", "forbinder"),
+    ("C", "nemlig", "ведь / а именно", "adverbium/forbinder"),
+    ("C", "på den måde", "таким образом", "mønster"),
+    ("C", "siden", "с тех пор как / поскольку", "ledsætningsindleder"),
     ("C", "som regel", "как правило", "adverbium"),
-    ("C", "til sidst", "в конце / наконец", "tid"),
-    ("B", "derimod", "напротив / зато", "forbinder"),
-    ("B", "alligevel", "всё же / несмотря на это", "forbinder"),
-    ("B", "samtidig", "одновременно / в то же время", "forbinder"),
+    ("C", "til sidst", "в конце / наконец", "tidsadverbium"),
+    ("B", "derimod", "напротив / зато", "adverbium/forbinder"),
+    ("B", "alligevel", "всё же / несмотря на это", "adverbium"),
+    ("B", "samtidig", "одновременно / в то же время", "adverbium"),
     ("A", "til gengæld", "зато / с другой стороны", "forbinder"),
     ("A", "efterhånden", "постепенно / со временем", "adverbium"),
     ("S", "ikke desto mindre", "тем не менее", "forbinder"),
@@ -99,7 +141,7 @@ Every gap must be uniquely solvable from its local sentence/clause plus the glob
 Do not make capitalization reveal the answer. Put punctuation in segments, not in word_bank.
 At C-S, avoid six obvious vocabulary blanks: primarily test function words, grammar and cohesion in context.
 At B-S, several distractors should be grammatically similar, but there must still be one unique complete solution.
-focus.phrase should be a useful reusable word or short chunk actually represented by the completed text, not a trivial noun unless the noun is the tested lexical item.
+focus.phrase should be a useful reusable word or short chunk actually represented by the completed text. focus.category must name the grammatical type, for example: personligt pronomen, objektpronomen, possessivt pronomen, refleksivt possessivt pronomen, hovedsætningskonjunktion, ledsætningskonjunktion, ledsætningsindleder, relativt pronomen, spørgeord, adverbium/negation, verbum, substantiv/adjektiv, or mønster.
 Max lengths: title 120, topic 100, segment 850, word 40, explanation 520, focus phrase 120, translation 180.
 """
 
@@ -286,6 +328,7 @@ async def prepare_word_gap(topic, rank="C", recent_titles=(), phrase_bank=None):
                 "The bank must be a deliberate MIX of word types, not a random vocabulary list. At exam level C, prioritize "
                 "connectors/conjunctions, adverbs/negation, verbs/auxiliaries and only a small number of content words. "
                 + RANK_GUIDANCE[rank] + " " + unpredictability +
+                WORD_TYPE_RULES + " "
                 "Useful structures may be inspired by this learning-priority list, especially earlier items, but do not force "
                 "them and do not simply copy the list into the bank: "
                 + "; ".join(phrase for phrase, _ in targets) + ". "

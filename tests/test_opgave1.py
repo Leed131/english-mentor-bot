@@ -14,7 +14,7 @@ from opgave1_generator import (
     prepare_word_gap,
     validate_word_gap,
 )
-from opgave1_support import answer_keyboard, db_action
+from opgave1_support import answer_keyboard, db_action, picker_keyboard, picker_text
 from study_memory import StudyMemory
 
 
@@ -80,6 +80,27 @@ class Opgave1ValidationTests(unittest.TestCase):
             )
         )
 
+    def test_picker_allows_editing_any_gap_before_submit(self):
+        data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
+        item = {"id": 42, "data": data, "answers": [], "mode": "exam", "completed": False}
+        picks = {0: "fordi", 2: "men"}
+        markup = picker_keyboard(item, picks, target=2)
+        labels = [button.text for row in markup.inline_keyboard for button in row]
+        callbacks = [
+            button.callback_data
+            for row in markup.inline_keyboard
+            for button in row
+            if button.callback_data
+        ]
+        self.assertIn("✅ 1", labels)
+        self.assertIn("👉 3", labels)
+        self.assertIn("opg1:gap:42:4", callbacks)
+        self.assertIn("opg1:word:42:2:også", callbacks)
+        text = picker_text(item, picks)
+        self.assertIn("[1: fordi]", text)
+        self.assertIn("[2: _____]", text)
+        self.assertIn("[3: men]", text)
+
     def test_keyboard_removes_used_words(self):
         data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
         item = {"id": 42, "data": data, "answers": ["fordi"], "mode": "exam", "completed": False}
@@ -93,7 +114,7 @@ class Opgave1ValidationTests(unittest.TestCase):
             for button in row
             if button.callback_data
         ]
-        self.assertIn("opg1:answer:42:1:også", callbacks)
+        self.assertIn("opg1:word:42:1:også", callbacks)
 
 
 class Opgave1PersistenceTests(unittest.TestCase):
@@ -132,6 +153,22 @@ class Opgave1PersistenceTests(unittest.TestCase):
                 session.scalar(select(func.count()).select_from(WordGapSession)),
                 1,
             )
+
+    def test_bulk_submit_accepts_editable_final_selection(self):
+        item = db_action(
+            "one",
+            "create",
+            data=validate_word_gap(EN_GAMMEL_DROEM, rank="C"),
+            mode="exam",
+        )
+        result = db_action(
+            "one",
+            "submit_all",
+            id=item["id"],
+            answers=["fordi", "også", "men", "ikke", "har", "butik"],
+        )
+        self.assertTrue(result["completed"])
+        self.assertEqual(result["score"], 100)
 
     def test_same_word_cannot_be_used_twice(self):
         item = db_action(

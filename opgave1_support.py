@@ -52,6 +52,7 @@ def menu():
     return keyboard([
         [("🎓 Som til prøven", "opg1:mode:exam"), ("💡 Øvelse", "opg1:mode:practice")],
         [("📘 En gammel drøm", "opg1:source")],
+        [("🧠 Hvilke ord trænes?", "opg1:types")],
         [("▶️ Fortsæt", "opg1:resume")],
         [("⬅️ Test", "study:section:tests")],
     ])
@@ -521,6 +522,21 @@ async def callback(update, context):
         await send(
             update,
             "📝 Opgave 1 — manglende ord\nLæs teksten lokalt og vælg seks ord fra en boks med ti. Hvert ord må kun bruges én gang.",
+            menu(),
+        )
+
+    elif action == "types":
+        await send(
+            update,
+            "🧠 Opgave 1 træner især grammatiske ord i kontekst:\n"
+            "• personlige pronominer: han/hun/de → ham/hende/dem\n"
+            "• possessiver: sin/sit/sine ↔ hans/hendes/deres\n"
+            "• hovedsætningskonjunktioner: og, men, for\n"
+            "• ledsætninger: fordi, selvom, at, når, da, mens\n"
+            "• relative/spørgeord: som, hvor, hvad, der\n"
+            "• adverbier: ikke, også, derfor, aldrig\n"
+            "• kun få verber/substantiver/adjektiver.\n\n"
+            "På rang C–S skal grammatik- og referenceord være flertallet.",
             menu(),
         )
 

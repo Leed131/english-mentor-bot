@@ -2,6 +2,7 @@
 import json
 import logging
 import random
+import re
 
 from quiz_generator import _get_client, _model
 
@@ -116,7 +117,7 @@ SCHEMA = """Return JSON only:
 {
   "title":"Danish title",
   "topic":"short Danish topic",
-  "segments":["text before gap 1","between gap 1 and 2","...","text after gap 6"],
+  "text_with_gaps":"One coherent Danish text containing exactly these six markers once each, in order: [[1]] [[2]] [[3]] [[4]] [[5]] [[6]]",
   "word_bank":["word1","word2","word3","word4","word5","word6","unused1","unused2","unused3","unused4"],
   "word_types":{"word1":"conjunction","word2":"adverb","word3":"verb","word4":"noun"},
   "answers":["word for gap1","word for gap2","word for gap3","word for gap4","word for gap5","word for gap6"],
@@ -125,7 +126,7 @@ SCHEMA = """Return JSON only:
     {"phrase":"useful Danish word or short pattern connected to gap1","translation_ru":"Russian meaning","category":"short category"}
   ]
 }
-Exactly 7 non-empty segments, forming ONE coherent Danish everyday text when the six answers are inserted.
+text_with_gaps must be ONE coherent Danish everyday text and must contain exactly six markers [[1]] through [[6]], each exactly once and in numerical order. Do not return a segments array for generated tasks.
 Exactly 10 distinct single-word choices in word_bank. Exactly 6 distinct answers; each answer appears in word_bank and is used once. Exactly 4 words are unused.
 word_types must classify EVERY bank word with exactly one of: conjunction, adverb, negation, verb, pronoun, preposition, noun, adjective.
 At rank C, the bank should normally resemble real mixed grammar/vocabulary tasks rather than a vocabulary list:
@@ -158,9 +159,25 @@ def validate_word_gap(raw, rank="C"):
         return value.strip()
 
     segments = raw.get("segments")
-    if not isinstance(segments, list) or len(segments) != 7:
-        raise ValueError("Нужно семь фрагментов текста для шести пропусков.")
-    segments = [text(value, 850) for value in segments]
+    if isinstance(segments, list):
+        if len(segments) != 7:
+            raise ValueError("Нужно семь фрагментов текста для шести пропусков.")
+        segments = [text(value, 850) for value in segments]
+    else:
+        template = raw.get("text_with_gaps")
+        if not isinstance(template, str) or not template.strip():
+            raise ValueError("Нужен цельный текст с шестью маркерами пропусков.")
+        markers = re.findall(r"\[\[([1-6])\]\]", template)
+        if markers != ["1", "2", "3", "4", "5", "6"]:
+            raise ValueError("В тексте должны быть ровно маркеры [[1]] ... [[6]] по порядку.")
+        pieces = re.split(r"\[\[[1-6]\]\]", template)
+        if len(pieces) != 7:
+            raise ValueError("Не удалось разделить текст на шесть пропусков.")
+        # Leading/trailing text may be short, but every internal bridge must contain
+        # enough context to make the exercise readable.
+        if any(not piece.strip() for piece in pieces[1:6]):
+            raise ValueError("Между пропусками должен быть текстовый контекст.")
+        segments = [piece.strip() for piece in pieces]
 
     word_bank = raw.get("word_bank")
     if not isinstance(word_bank, list) or len(word_bank) != 10:
@@ -343,6 +360,7 @@ async def prepare_word_gap(topic, rank="C", recent_titles=(), phrase_bank=None):
             prompt = (
                 "Create a NEW Danish word-bank gap exercise in the same structural style as DU3 Modul 3 local-cohesion reading: "
                 "one coherent everyday text, six missing single words, ten choices, each word usable at most once, four unused. "
+                "Return the exercise text as ONE text_with_gaps string with exactly [[1]], [[2]], [[3]], [[4]], [[5]], [[6]] in that order. "
                 "The bank must be a deliberate MIX of word types, not a random vocabulary list. At exam level C, prioritize "
                 "connectors/conjunctions, adverbs/negation, verbs/auxiliaries and only a small number of content words. "
                 + RANK_GUIDANCE[rank] + " " + unpredictability +

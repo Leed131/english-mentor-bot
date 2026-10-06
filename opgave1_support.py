@@ -469,7 +469,7 @@ async def grade(update, user, answer, item_id, index):
 
 
 async def generate(update, user, topic, mode, rank):
-    await send(update, "Jeg laver og kontrollerer en ny Opgave 1…")
+    await send(update, "Jeg laver og kontrollerer en ny Opgave 1… Det tager højst ca. 35 sekunder.")
     recent = await db(user, "recent")
     recent_titles = [item["data"]["title"] for item in recent]
     phrase_bank = await db(user, "phrases", rank=rank)
@@ -481,7 +481,7 @@ async def generate(update, user, topic, mode, rank):
                 recent_titles=recent_titles,
                 phrase_bank=phrase_bank,
             ),
-            timeout=85,
+            timeout=35,
         )
     except Exception:
         logger.exception("Opgave 1 generation failed")

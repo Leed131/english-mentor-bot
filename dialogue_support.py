@@ -11,7 +11,7 @@ from telegram.ext import (ApplicationHandlerStop, CallbackQueryHandler, CommandH
                           MessageHandler, filters)
 
 from database import DialogueSession
-from dialogue_generator import LETTERS, parse_answers, prepare_dialogue, validate_dialogue
+from dialogue_generator import COMMON_PHRASES, LETTERS, parse_answers, prepare_dialogue, validate_dialogue
 from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
@@ -27,7 +27,6 @@ def keyboard(rows):
 def menu():
     return keyboard([
         [("🎓 Som til prøven", "dialog:topics:exam"), ("💡 Øvelse", "dialog:topics:practice")],
-        [("📘 Prøveeksempel", "dialog:sample")],
         [("➕ Tilføj opgave", "dialog:add"), ("📚 Mine opgaver", "dialog:mine")],
         [("🔁 Øv dine fejl", "dialog:review"), ("▶️ Fortsæt", "dialog:resume")],
         [("⬅️ Studiemenu", "study:menu")],
@@ -116,6 +115,16 @@ async def db(user, action, **kwargs):
     return await asyncio.to_thread(db_action, user, action, **kwargs)
 
 
+def useful_phrases(data, limit=5):
+    """Return reusable chunks that actually occur in this exercise."""
+    haystack = " ".join(
+        list(data.get("lines", [])) + list(data.get("options", {}).values())
+    ).casefold()
+    found = [(danish, russian) for danish, russian in COMMON_PHRASES
+             if danish.casefold() in haystack]
+    return found[:limit]
+
+
 def exercise_text(item, reveal=False):
     data = item["data"]
     a, b = data["speakers"]
@@ -169,6 +178,10 @@ async def grade(update, user, answers, **kwargs):
                    + item["data"]["explanations"][i])
     if item["completed"]:
         await send(update, exercise_text(item, reveal=True))
+        phrases = useful_phrases(item["data"])
+        if phrases:
+            phrase_text = "\n".join(f"• {danish} — {russian}" for danish, russian in phrases)
+            await send(update, "🗣️ Nyttige vendinger\n" + phrase_text)
         await send(update, f"Resultatet er gemt: {item['score']}%.", keyboard([
             [("🔄 En lignende opgave", f"dialog:more:{item['id']}")],
             [("🔁 Repetition", f"dialog:retry:{item['id']}")],
@@ -255,7 +268,7 @@ async def callback(update, context):
     context.user_data.pop("du3_opgave2_session", None)
     parts = data.split(":")
     action = parts[1]
-    if action in {"menu", "topics", "topic", "sample", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
+    if action in {"menu", "topics", "topic", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
         context.user_data.pop(STATE, None)
         await db(user, "pause")
     if action == "menu":
@@ -275,10 +288,6 @@ async def callback(update, context):
     elif action == "new":
         if parts[2] in {"exam", "practice"} and parts[3].isdigit() and int(parts[3]) < len(TOPICS):
             await generate(update, user, TOPICS[int(parts[3])], parts[2])
-    elif action == "sample":
-        from dialogue_examples import du3_simon_amanda_dialogue
-        item = await db(user, "create", data=du3_simon_amanda_dialogue(), mode="exam")
-        await show(update, item)
     elif action == "add":
         context.user_data[STATE] = {"import": True}
         await send(update, "Send tekst eller et foto med hele dialogen, tre huller og svarmulighederne A–F. "

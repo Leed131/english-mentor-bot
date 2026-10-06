@@ -48,6 +48,8 @@ RANKED_PHRASES = (
     ("D", "Jeg har først fri", "Я освобожусь только…", "arbejde"),
     ("D", "Skriv, når", "Напиши, когда…", "kontakt"),
     ("D", "Hvor skal jeg", "Куда мне…? / Где мне…?", "instruktion"),
+    ("D", "Vi ses i morgen", "Увидимся завтра", "hilsen"),
+    ("D", "Vi ses senere", "Увидимся позже", "hilsen"),
 
     ("C", "Godt spørgsmål", "Хороший вопрос", "svar"),
     ("C", "Jeg bliver forsinket", "Я задерживаюсь", "tid"),

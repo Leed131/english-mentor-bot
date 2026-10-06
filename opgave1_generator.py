@@ -474,18 +474,54 @@ async def prepare_word_gap(topic, rank="C", recent_titles=(), phrase_bank=None):
                 for group in review.get("candidates", [])
                 if isinstance(group, list)
             ]
-            if (
-                review.get("valid") is not True
-                or solved != expected
-                or candidates != [[answer] for answer in expected]
-            ):
+            bank_lookup = {word.casefold(): word for word in data["word_bank"]}
+            reviewer_has_unique_solution = (
+                review.get("valid") is True
+                and len(solved) == 6
+                and len(candidates) == 6
+                and all(len(group) == 1 for group in candidates)
+                and all(group[0] == solved[index] for index, group in enumerate(candidates))
+                and len(set(solved)) == 6
+                and all(answer in bank_lookup for answer in solved)
+            )
+            if not reviewer_has_unique_solution:
                 raise ValueError(
                     "Logical review rejected candidate: "
                     + str(review.get("reason", ""))[:700]
                     + "; candidates=" + str(review.get("candidates"))[:240]
                 )
 
+            # The independent solver is the final authority on the answer key.
+            # If the generation model built a good task but attached a wrong key,
+            # repair the key instead of throwing the entire exercise away.
+            key_was_repaired = solved != expected
+            if key_was_repaired:
+                data["answers"] = [bank_lookup[answer] for answer in solved]
+
             stage = "explanations"
+            if key_was_repaired:
+                repaired = await _json_call(
+                    (
+                        "The Danish word-gap exercise below has already been independently solved. "
+                        "Rewrite ONLY pedagogical metadata for the corrected answer key. Return JSON only: "
+                        '{"explanations_ru":["six concise Russian explanations"],'
+                        '"focus":[{"phrase":"useful Danish word/chunk","translation_ru":"Russian meaning","category":"grammar category"}]}. '
+                        "Give exactly six explanations and six focus objects, one per gap. "
+                        "Every explanation must justify the corrected word from local grammar and meaning. "
+                        "Every focus phrase must actually occur in the completed Danish text or be the corrected answer itself."
+                    ),
+                    json.dumps({
+                        "segments": data["segments"],
+                        "word_bank": data["word_bank"],
+                        "answers": data["answers"],
+                        "completed_text": completed_text(data),
+                    }, ensure_ascii=False),
+                )
+                data["explanations_ru"] = repaired.get("explanations_ru", [])
+                data["focus"] = repaired.get("focus", [])
+                # Re-validate repaired metadata without re-running generation.
+                data = validate_word_gap(data, rank=rank)
+
             check = await _json_call(
                 (
                     'Check six Russian explanations and six focus items against the Danish completed text and answer key. '

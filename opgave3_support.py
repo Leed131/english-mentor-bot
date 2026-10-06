@@ -666,6 +666,9 @@ async def text_message(update, context):
     if not user:
         return
     text = update.effective_message.text.strip()
+    if text.lower() in telegram_bot.MENU_ALIASES | telegram_bot.DU3_OPGAVE2_ALIASES:
+        context.user_data.pop(STATE, None)
+        return
     if len(text) > 160:
         await send(update, "Skriv et emne på højst 160 tegn.")
     else:

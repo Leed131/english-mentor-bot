@@ -36,6 +36,18 @@ EN_GAMMEL_DROEM = {
         ".",
     ],
     "word_bank": ["tøj", "butik", "men", "meget", "har", "ikke", "og", "arbejder", "også", "fordi"],
+    "word_types": {
+        "tøj": "noun",
+        "butik": "noun",
+        "men": "conjunction",
+        "meget": "adverb",
+        "har": "verb",
+        "ikke": "negation",
+        "og": "conjunction",
+        "arbejder": "verb",
+        "også": "adverb",
+        "fordi": "conjunction",
+    },
     "answers": ["fordi", "også", "men", "ikke", "har", "butik"],
     "explanations_ru": [
         "Здесь нужна причина: Хелле разбирается в детской одежде, потому что работала в магазине одежды. Derfor: fordi.",

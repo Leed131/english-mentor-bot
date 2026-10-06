@@ -33,7 +33,12 @@ class ValidationTests(unittest.TestCase):
         phrases = dict(useful_phrases(raw))
         self.assertIn("Godt spørgsmål", phrases)
         self.assertIn("Skal jeg så", phrases)
-        self.assertGreaterEqual(len(COMMON_PHRASES), 10)
+        self.assertGreaterEqual(len(COMMON_PHRASES), 25)
+        phrase_map = dict(COMMON_PHRASES)
+        self.assertIn("Det er en aftale", phrase_map)
+        self.assertIn("Kan du ikke", phrase_map)
+        self.assertIn("Hvor skal jeg", phrase_map)
+        self.assertIn("Vi ses i morgen", phrase_map)
 
     def test_input_formats_and_rejections(self):
         for text in ["1D 2A 3B", "dab", "D, A, B", "1D 2А 3В"]:

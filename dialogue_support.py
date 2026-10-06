@@ -20,6 +20,12 @@ STATE = "dialogue_input"
 EXAM_PICK_KEY = "dialog_exam_picks"
 TOPICS = ["Aftaler og transport", "Indkøb og returvarer", "Naboer og bolig",
           "Arbejde og vagter", "Biograf og invitationer", "Familie og skole"]
+LOW_VALUE_PHRASES = {
+    "hej", "tak", "ja tak", "nej tak", "undskyld", "vi ses",
+    "kan du", "skal vi", "hvad tid", "hvor er", "jeg kan ikke",
+}
+IMPORTANT_CATEGORIES = {"aftale", "anmodning", "ønske", "vurdering", "løfte", "instruktion", "arbejde", "kontakt", "svar"}
+
 RANK_LABELS = {
     "F": "Meget let",
     "E": "Let",
@@ -157,15 +163,48 @@ def _apply_phrase_result(progress, verdict):
         raise ValueError("Ukendt vending-status.")
 
 
+def _phrase_learning_score(row):
+    """Prefer reusable multi-word chunks over greetings and beginner filler."""
+    normalized = row.phrase.casefold().strip()
+    if normalized in LOW_VALUE_PHRASES:
+        return -1000
+    words = len(row.phrase.split())
+    category_bonus = 4 if row.category in IMPORTANT_CATEGORIES else 0
+    rank_bonus = RANK_ORDER.index(row.rank) if row.rank in RANK_ORDER else 0
+    return words * 10 + category_bonus + rank_bonus
+
+
+def _best_phrase_rows(rows, limit=5):
+    rows = sorted(rows, key=lambda row: (-_phrase_learning_score(row), row.id))
+    selected = []
+    for row in rows:
+        if _phrase_learning_score(row) < 0:
+            continue
+        normalized = row.phrase.casefold().strip()
+        # Avoid showing both a short fragment and a longer phrase containing it.
+        if any(
+            normalized in chosen.phrase.casefold()
+            or chosen.phrase.casefold() in normalized
+            for chosen in selected
+        ):
+            continue
+        selected.append(row)
+        if len(selected) >= limit:
+            break
+    return selected
+
+
 def _matching_phrase_rows(session, text):
     _seed_phrase_bank(session)
+    session.flush()
     normalized = text.casefold()
-    return [
+    rows = [
         row for row in session.scalars(
             select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
         ).all()
         if row.phrase.casefold() in normalized
     ]
+    return _best_phrase_rows(rows, limit=5)
 
 
 def _gap_phrase_rows(session, data, index):
@@ -236,13 +275,14 @@ def db_action(user_id, action, **args):
             haystack = " ".join(
                 list(data.get("lines", [])) + list(data.get("options", {}).values())
             ).casefold()
-            rows = session.scalars(
-                select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
-            ).all()
+            matching = [
+                row for row in session.scalars(
+                    select(DialoguePhrase).where(DialoguePhrase.active.is_(True))
+                ).all()
+                if row.phrase.casefold() in haystack
+            ]
             result = []
-            for row in rows:
-                if row.phrase.casefold() not in haystack:
-                    continue
+            for row in _best_phrase_rows(matching, limit=5):
                 progress = session.scalar(
                     select(DialoguePhraseProgress).where(
                         DialoguePhraseProgress.profile_id == profile.id,
@@ -256,7 +296,7 @@ def db_action(user_id, action, **args):
                     "rank": row.rank,
                     "status": progress.status if progress else "new",
                 })
-            return result[:5]
+            return result
 
         if action == "phrase_feedback":
             phrase_id = int(args["phrase_id"])
@@ -387,13 +427,31 @@ async def db(user, action, **kwargs):
 
 
 def useful_phrases(data, limit=5):
-    """Return reusable chunks that actually occur in this exercise."""
+    """Return pedagogically useful chunks, not greetings or trivial words."""
     haystack = " ".join(
         list(data.get("lines", [])) + list(data.get("options", {}).values())
     ).casefold()
-    found = [(danish, russian) for danish, russian in COMMON_PHRASES
-             if danish.casefold() in haystack]
-    return found[:limit]
+    ranked = []
+    for phrase_rank, danish, russian, category in RANKED_PHRASES:
+        if danish.casefold() not in haystack:
+            continue
+        normalized = danish.casefold().strip()
+        if normalized in LOW_VALUE_PHRASES:
+            continue
+        score = len(danish.split()) * 10 + (4 if category in IMPORTANT_CATEGORIES else 0)
+        score += RANK_ORDER.index(phrase_rank)
+        ranked.append((score, danish, russian))
+    ranked.sort(key=lambda item: (-item[0], item[1]))
+    result = []
+    for _, danish, russian in ranked:
+        normalized = danish.casefold()
+        if any(normalized in chosen.casefold() or chosen.casefold() in normalized
+               for chosen, _ in result):
+            continue
+        result.append((danish, russian))
+        if len(result) >= limit:
+            break
+    return result
 
 
 def exercise_text(item, reveal=False):

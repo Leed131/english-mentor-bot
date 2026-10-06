@@ -27,6 +27,17 @@ class Opgave1ValidationTests(unittest.TestCase):
         self.assertEqual(len(data["word_bank"]), 10)
         self.assertEqual(len(set(data["answers"])), 6)
 
+    def test_source_word_types_match_exam_pattern(self):
+        data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
+        types = data["word_types"]
+        self.assertEqual(types["fordi"], "conjunction")
+        self.assertEqual(types["også"], "adverb")
+        self.assertEqual(types["ikke"], "negation")
+        self.assertEqual(types["har"], "verb")
+        self.assertEqual(types["butik"], "noun")
+        answer_types = {types[word] for word in data["answers"]}
+        self.assertGreaterEqual(len(answer_types), 4)
+
     def test_completed_text_restores_natural_patterns(self):
         data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
         text = completed_text(data)

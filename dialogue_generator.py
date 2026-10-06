@@ -59,6 +59,7 @@ SCHEMA = '''Return JSON only:
 Exactly 3 gaps and 6 distinct options, 3 unused distractors. Three distinct answer letters.
 Natural everyday Danish at A2/B1 reading difficulty, comparable to DU2 Modul 4 / DU3 Modul 3 reading dialogues.
 First plan a COMPLETE coherent conversation in alternating turns. Then remove three replies.
+Before returning JSON, mentally insert all three correct replies back into the conversation and verify that every following given line is a direct, natural reaction to that reply.
 Each correct reply must fit BOTH adjacent lines; exactly one option fits each gap.
 The lines array contains only SIX GIVEN turns, not the complete conversation.
 The full order is: speaker 1 lines[0], speaker 2 lines[1], speaker 1 lines[2],

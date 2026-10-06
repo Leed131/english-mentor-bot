@@ -9,7 +9,7 @@ from sqlalchemy import func, select
 from database import DialoguePhrase, DialoguePhraseProgress, DialogueSession, StudyDatabase
 from dialogue_generator import COMMON_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue
 from dialogue_examples import reserve_dialogue
-from dialogue_support import db_action, exercise_text, useful_phrases, callback, text_message, STATE
+from dialogue_support import db_action, dialogue_audio_turns, exercise_text, useful_phrases, callback, text_message, STATE
 from study_memory import StudyMemory
 from telegram.ext import ApplicationHandlerStop
 
@@ -97,6 +97,17 @@ class ValidationTests(unittest.TestCase):
         self.assertNotIn("Объяснение", text)
         self.assertNotIn("[1] D", text)
         self.assertLess(len(text), 3800)
+
+    def test_dialogue_audio_turns_uses_correct_replies(self):
+        raw = example()
+        turns = dialogue_audio_turns(raw)
+        self.assertEqual(len(turns), 9)
+        self.assertEqual(turns[0], (0, raw["lines"][0]))
+        self.assertEqual(turns[1], (1, raw["lines"][1]))
+        self.assertEqual(turns[3], (1, raw["options"]["D"]))
+        self.assertEqual(turns[5], (1, raw["options"]["A"]))
+        self.assertEqual(turns[7], (1, raw["options"]["B"]))
+        self.assertEqual(turns[-1], (0, raw["lines"][5]))
 
 
 class GenerationTests(unittest.IsolatedAsyncioTestCase):

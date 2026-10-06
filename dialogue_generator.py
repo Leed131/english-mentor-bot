@@ -12,42 +12,79 @@ LETTERS = "ABCDEF"
 # High-frequency spoken Danish worth meeting again and again across different
 # everyday situations. The generator is asked to reuse these naturally so the
 # learner practises chunks, not only one-off vocabulary.
-COMMON_PHRASES = (
-    ("Godt spørgsmål", "Хороший вопрос"),
-    ("Jeg bliver forsinket", "Я задерживаюсь"),
-    ("Skal jeg så", "Тогда мне…?"),
-    ("Det må du meget gerne", "Да, пожалуйста / с удовольствием"),
-    ("Hvad har du lyst til", "Что тебе хочется?"),
-    ("Det er lige meget", "Всё равно / неважно"),
-    ("Bare jeg får", "Лишь бы я получил(а)…"),
-    ("Det lyder godt", "Звучит хорошо"),
-    ("Det passer fint", "Это отлично подходит"),
-    ("Det er fint", "Хорошо / меня устраивает"),
-    ("Det er i orden", "Всё в порядке / подходит"),
-    ("Det skal jeg nok", "Я это сделаю / обязательно"),
-    ("Det ved jeg ikke endnu", "Я пока не знаю"),
-    ("Så gør vi det", "Тогда так и сделаем"),
-    ("Jeg har først fri", "Я освобожусь только…"),
-    ("Jeg kan desværre ikke", "К сожалению, я не могу…"),
-    ("Kan du ikke", "Не мог(ла) бы ты…?"),
-    ("Kan du komme", "Ты можешь прийти…?"),
-    ("Hvor skal jeg", "Куда мне…? / Где мне…?"),
-    ("Hvornår skal jeg", "Когда мне…?"),
-    ("Du kan bare", "Ты можешь просто…"),
-    ("Når du kommer", "Когда ты придёшь"),
-    ("Når du går", "Когда ты уходишь"),
-    ("Det er jeg glad for", "Я этому рад(а)"),
-    ("Det er en aftale", "Договорились"),
-    ("Super", "Супер / отлично"),
-    ("Men okay", "Но ладно / хорошо"),
-    ("Så må jeg måske", "Тогда, возможно, мне придётся…"),
-    ("Er det ok", "Это нормально / подходит?"),
-    ("Vi ses i morgen", "Увидимся завтра"),
-    ("Vi ses senere", "Увидимся позже"),
-    ("Skriv, når", "Напиши, когда…"),
-    ("Skal vi sige", "Давай договоримся на…"),
-    ("Det passer mig fint", "Мне это отлично подходит"),
+RANK_ORDER = ("F", "E", "D", "C", "B", "A", "S")
+RANK_GUIDANCE = {
+    "F": "Very easy A1. Short concrete sentences, mostly present tense, obvious clues and simple everyday words.",
+    "E": "Easy A1/A2. Simple modal verbs, time/place questions and direct reasons. Keep distractors clearly distinguishable.",
+    "D": "A2. Everyday planning, requests and short fordi/at clauses. Use natural but still explicit clues.",
+    "C": "DU3 Modul 3 baseline, A2/B1. Natural everyday Danish, linked turns, common subordinate clauses and realistic distractors.",
+    "B": "Strong B1. More paraphrase, preference and cause/effect. Clues can be less literal, but every gap must still have one unique answer.",
+    "A": "B1+/B2. Nuanced everyday speech, indirect agreement/disagreement and denser links across turns. Avoid obscure vocabulary.",
+    "S": "Extra challenge around B2. Very natural nuanced conversation, close distractors and inference across both neighbouring turns, but still one provably correct answer.",
+}
+
+# Rank, Danish chunk, Russian meaning, category.
+RANKED_PHRASES = (
+    ("F", "Hej", "Привет", "hilsen"),
+    ("F", "Tak", "Спасибо", "hilsen"),
+    ("F", "Ja tak", "Да, спасибо", "svar"),
+    ("F", "Nej tak", "Нет, спасибо", "svar"),
+    ("F", "Undskyld", "Извините", "hilsen"),
+    ("F", "Det er fint", "Хорошо / меня устраивает", "aftale"),
+    ("F", "Vi ses", "Увидимся", "hilsen"),
+
+    ("E", "Hvordan går det?", "Как дела?", "hverdag"),
+    ("E", "Hvad tid", "Во сколько?", "tid"),
+    ("E", "Hvor er", "Где находится…?", "sted"),
+    ("E", "Jeg vil gerne", "Я хотел(а) бы…", "ønske"),
+    ("E", "Kan du", "Ты можешь…?", "anmodning"),
+    ("E", "Skal vi", "Давай / нам следует…?", "aftale"),
+    ("E", "Jeg kan ikke", "Я не могу…", "svar"),
+
+    ("D", "Kan du ikke", "Не мог(ла) бы ты…?", "anmodning"),
+    ("D", "Jeg kan desværre ikke", "К сожалению, я не могу…", "svar"),
+    ("D", "Det passer mig fint", "Мне это отлично подходит", "aftale"),
+    ("D", "Du kan bare", "Ты можешь просто…", "instruktion"),
+    ("D", "Jeg har først fri", "Я освобожусь только…", "arbejde"),
+    ("D", "Skriv, når", "Напиши, когда…", "kontakt"),
+    ("D", "Hvor skal jeg", "Куда мне…? / Где мне…?", "instruktion"),
+
+    ("C", "Godt spørgsmål", "Хороший вопрос", "svar"),
+    ("C", "Jeg bliver forsinket", "Я задерживаюсь", "tid"),
+    ("C", "Skal jeg så", "Тогда мне…?", "aftale"),
+    ("C", "Det må du meget gerne", "Да, пожалуйста / с удовольствием", "svar"),
+    ("C", "Hvad har du lyst til", "Что тебе хочется…?", "ønske"),
+    ("C", "Det er lige meget", "Всё равно / неважно", "svar"),
+    ("C", "Det skal jeg nok", "Я это сделаю / обязательно", "løfte"),
+    ("C", "Det er en aftale", "Договорились", "aftale"),
+
+    ("B", "Det kommer an på", "Это зависит от…", "vurdering"),
+    ("B", "Hvis det passer dig", "Если тебе подходит", "aftale"),
+    ("B", "Jeg er ikke sikker på", "Я не уверен(а)…", "vurdering"),
+    ("B", "Det lyder som en god idé", "Звучит как хорошая идея", "svar"),
+    ("B", "Jeg vil helst", "Я бы предпочёл(ла)…", "ønske"),
+    ("B", "Hvad synes du om", "Что ты думаешь о…?", "vurdering"),
+    ("B", "Så gør vi det", "Тогда так и сделаем", "aftale"),
+
+    ("A", "Så vidt jeg ved", "Насколько я знаю", "vurdering"),
+    ("A", "Jeg synes faktisk, at", "На самом деле я считаю, что…", "vurdering"),
+    ("A", "Det ville være bedre, hvis", "Было бы лучше, если…", "forslag"),
+    ("A", "Jeg er enig i, at", "Я согласен/согласна, что…", "vurdering"),
+    ("A", "Det afhænger af", "Это зависит от…", "vurdering"),
+    ("A", "På den anden side", "С другой стороны", "vurdering"),
+    ("A", "Jeg havde egentlig tænkt mig at", "Вообще-то я собирался/собиралась…", "plan"),
+
+    ("S", "Hvis jeg skal være helt ærlig", "Если быть совсем честным/честной", "vurdering"),
+    ("S", "Jeg kan godt se din pointe, men", "Я понимаю твою мысль, но…", "vurdering"),
+    ("S", "Det vigtigste er, at", "Самое важное, что…", "vurdering"),
+    ("S", "Det kunne være en mulighed, hvis", "Это могло бы быть вариантом, если…", "forslag"),
+    ("S", "Jeg ville nok foretrække at", "Я, пожалуй, предпочёл(ла) бы…", "ønske"),
+    ("S", "Sådan som jeg ser det", "Как я это вижу", "vurdering"),
+    ("S", "Det er ikke fordi", "Не то чтобы…, но…", "vurdering"),
 )
+
+COMMON_PHRASES = tuple((phrase, translation) for _, phrase, translation, _ in RANKED_PHRASES)
+
 SCHEMA = '''Return JSON only:
 {"topic":"short everyday topic IN DANISH", "situation":"Danish context",
  "speakers":["Anna","Bo"],
@@ -142,8 +179,14 @@ def review_payload(data, filled=False):
             "gaps": gaps, "options": data["options"]}
 
 
-async def prepare_dialogue(topic, recent=(), source=None):
+async def prepare_dialogue(topic, recent=(), source=None, rank="C", phrase_bank=None):
     """Repair rejected candidates using reviewer feedback; never bypass the independent check."""
+    if rank not in RANK_ORDER:
+        raise ValueError("Ukendt dialograng.")
+    selected_phrases = phrase_bank or [
+        (phrase, translation) for phrase_rank, phrase, translation, _ in RANKED_PHRASES
+        if phrase_rank == rank
+    ]
     last_error = None
     previous = None
     for attempt in range(3):
@@ -153,9 +196,10 @@ async def prepare_dialogue(topic, recent=(), source=None):
                            "Ignore handwritten guesses when solving. If illegible/incomplete, return {\"error\":\"unreadable\"}. "
                            if source else (
                                "Create a NEW original exercise; vary names, vocabulary and logical connections. "
+                               "The requested difficulty rank is " + rank + ". " + RANK_GUIDANCE[rank] + " "
                                "The main learning goal is reusable everyday Danish. Naturally reuse at least TWO, "
-                               "preferably THREE, high-frequency chunks from this phrase bank across the dialogue: "
-                               + "; ".join(phrase for phrase, _ in COMMON_PHRASES) + ". "
+                               "preferably THREE, high-frequency chunks from this rank's phrase bank across the dialogue: "
+                               + "; ".join(phrase for phrase, _ in selected_phrases) + ". "
                                "Do not force a phrase where it does not fit; choose phrases appropriate to the situation. "
                                "It is GOOD for the same useful chunks to recur in different exercises so the learner automatizes them. "
                            ))
@@ -164,11 +208,12 @@ async def prepare_dialogue(topic, recent=(), source=None):
                                 "following lines disambiguate each reply. Do not merely change the answer key. "
                                 if not source else "Re-read the source using the rejection feedback; do not change source wording. ")
             raw = await _json_call(SCHEMA, instruction + json.dumps(
-                {"topic": topic, "recent_situations_to_avoid": list(recent), "source": source,
+                {"topic": topic, "rank": rank, "recent_situations_to_avoid": list(recent), "source": source,
                  "previous_candidate": previous, "rejection_feedback": str(last_error) if last_error else None},
                 ensure_ascii=False))
             previous = raw
             data = validate_dialogue(raw)
+            data["rank"] = rank
             if not source and data["situation"].casefold() in {s.casefold() for s in recent}:
                 raise ValueError("Repeat of a recent situation. Create a different conversation.")
             stage = "logic"

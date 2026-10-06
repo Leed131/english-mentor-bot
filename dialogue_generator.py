@@ -203,8 +203,10 @@ async def prepare_dialogue(topic, recent=(), source=None, rank="C", phrase_bank=
                            if source else (
                                "Create a NEW original exercise; vary names, vocabulary and logical connections. "
                                "The requested difficulty rank is " + rank + ". " + RANK_GUIDANCE[rank] + " "
-                               "The main learning goal is reusable everyday Danish. Naturally reuse at least TWO, "
-                               "preferably THREE, high-frequency chunks from this rank's phrase bank across the dialogue: "
+                               "The main learning goal is reusable everyday Danish. The phrase bank is ordered by "
+                               "learning priority: weak or due phrases come first. If the bank is not empty, use at least "
+                               "ONE of the first three phrases naturally, and reuse TWO or preferably THREE useful chunks "
+                               "from the bank across the dialogue: "
                                + "; ".join(phrase for phrase, _ in selected_phrases) + ". "
                                "Do not force a phrase where it does not fit; choose phrases appropriate to the situation. "
                                "It is GOOD for the same useful chunks to recur in different exercises so the learner automatizes them. "

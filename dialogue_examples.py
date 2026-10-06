@@ -106,6 +106,39 @@ EXAMPLES = [
 ]
 
 
+def du3_simon_amanda_dialogue():
+    """Exact DU3 Modul 3 reading sample from the Simon/Amanda dinner chat."""
+    return validate_dialogue(
+        dict(
+            topic="Arbejde og aftensmad",
+            situation="Simon skriver til sin kæreste Amanda.",
+            speakers=["Simon", "Amanda"],
+            lines=[
+                "Hej skat. Hvad tid kommer du hjem?",
+                "Godt spørgsmål. Jeg bliver forsinket.",
+                "Hvorfor? Skal du arbejde over?",
+                "Okay. Skal jeg så lave aftensmad i dag?",
+                "Hvad har du lyst til? Pasta, fisk, kylling eller...?",
+                "Fint. Jeg laver noget til os. Vi ses senere, skat.",
+            ],
+            options={
+                "A": "Ja, det må du meget gerne. Du er en skat!",
+                "B": "Jeg køber noget mad med hjem.",
+                "C": "Ja, vi har rigtig meget at lave, og vi skal være færdige i dag.",
+                "D": "Det er lige meget. Bare jeg får noget mad.",
+                "E": "Nej tak, jeg er ikke sulten, så jeg har ikke lyst til at spise noget.",
+                "F": "Jeg tager på restaurant med mine kollegaer senere.",
+            },
+            answers=["C", "A", "D"],
+            explanations=[
+                "Simon spørger: «Hvorfor? Skal du arbejde over?» — hvorfor Amanda bliver forsinket. C forklarer direkte, at de har meget at lave og skal være færdige i dag. Derefter giver det mening, at Simon spørger om aftensmad.",
+                "Simon spørger, om han skal lave aftensmad. A betyder: «Ja, meget gerne», så hans næste spørgsmål om pasta, fisk eller kylling passer naturligt. B ville betyde, at Amanda selv køber mad med hjem.",
+                "Simon spørger, hvad Amanda har lyst til at spise. D betyder: «Det er lige meget, bare jeg får noget mad.» Derfor kan Simon afslutte: «Fint. Jeg laver noget til os.»",
+            ],
+        )
+    )
+
+
 def reserve_dialogue(topic, recent=()):
     normalized = topic.casefold()
     matches = [e for e in EXAMPLES if e["topic"].casefold() == normalized or any(a in normalized for a in e["aliases"])]

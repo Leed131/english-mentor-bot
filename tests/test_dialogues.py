@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import func, select
-from database import DialoguePhrase, DialogueSession, StudyDatabase
+from database import DialoguePhrase, DialoguePhraseProgress, DialogueSession, StudyDatabase
 from dialogue_generator import COMMON_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue
 from dialogue_examples import reserve_dialogue
 from dialogue_support import db_action, exercise_text, useful_phrases, callback, text_message, STATE
@@ -145,6 +145,35 @@ class PersistenceTests(unittest.TestCase):
         with self.memory.database.session() as session:
             self.assertGreater(session.scalar(select(func.count()).select_from(DialoguePhrase)), 40)
 
+    def test_wrong_answer_creates_weak_phrase_progress(self):
+        item = db_action("one", "create", data=example())
+        db_action("one", "answer", id=item["id"], answers=["A", "D", "B"])
+        weak = db_action("one", "weak")
+        self.assertTrue(weak)
+        self.assertTrue(any(row["wrong"] > 0 for row in weak))
+        with self.memory.database.session() as session:
+            self.assertGreater(
+                session.scalar(select(func.count()).select_from(DialoguePhraseProgress)),
+                0,
+            )
+
+    def test_manual_unclear_and_known_feedback(self):
+        db_action("one", "phrases", rank="C")
+        with self.memory.database.session() as session:
+            phrase = session.scalar(
+                select(DialoguePhrase).where(DialoguePhrase.phrase == "Det er en aftale")
+            )
+            phrase_id = phrase.id
+        result = db_action(
+            "one", "phrase_feedback", phrase_id=phrase_id, verdict="unclear"
+        )
+        self.assertEqual(result["status"], "weak")
+        self.assertTrue(any(row["id"] == phrase_id for row in db_action("one", "weak")))
+        result = db_action(
+            "one", "phrase_feedback", phrase_id=phrase_id, verdict="known"
+        )
+        self.assertIn(result["status"], {"review", "mastered"})
+
     def test_custom_exercises_errors_and_reset(self):
         item = db_action("one", "create", data=example(), custom=True)
         self.assertEqual(db_action("one", "mine")[0]["id"], item["id"])
@@ -157,6 +186,17 @@ class PersistenceTests(unittest.TestCase):
 
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_weak_menu_explains_empty_state(self):
+        query = SimpleNamespace(data="dialog:weak", answer=AsyncMock())
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(user_data={})
+        with patch("telegram_bot._study_user_id", return_value="one"), patch(
+            "dialogue_support.db", AsyncMock(side_effect=[None, []])
+        ), patch("dialogue_support.send", AsyncMock()) as send:
+            with self.assertRaises(ApplicationHandlerStop):
+                await callback(update, context)
+        self.assertIn("ingen svage vendinger", send.call_args.args[1].lower())
+
     async def test_topics_open_rank_selector(self):
         query = SimpleNamespace(data="dialog:topics:exam", answer=AsyncMock())
         update = SimpleNamespace(callback_query=query)

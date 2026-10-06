@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 from sqlalchemy import func, select
 from database import DialogueSession, StudyDatabase
 from dialogue_generator import COMMON_PHRASES, parse_answers, prepare_dialogue, validate_dialogue
+from dialogue_examples import reserve_dialogue
 from dialogue_support import db_action, exercise_text, useful_phrases, callback, text_message, STATE
 from study_memory import StudyMemory
 from telegram.ext import ApplicationHandlerStop
@@ -39,6 +40,18 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("Kan du ikke", phrase_map)
         self.assertIn("Hvor skal jeg", phrase_map)
         self.assertIn("Vi ses i morgen", phrase_map)
+
+    def test_reserve_never_repeats_recent_situation(self):
+        first = reserve_dialogue("Indkøb og returvarer", ())
+        self.assertIsNotNone(first)
+        second = reserve_dialogue("Indkøb og returvarer", (first["situation"],))
+        self.assertIsNotNone(second)
+        self.assertNotEqual(first["situation"], second["situation"])
+        all_seen = (
+            "Ida spørger en ekspedient om at bytte en jakke.",
+            "Mikkel vil bytte et par sko, som han købte i går.",
+        )
+        self.assertIsNone(reserve_dialogue("Indkøb og returvarer", all_seen))
 
     def test_input_formats_and_rejections(self):
         for text in ["1D 2A 3B", "dab", "D, A, B", "1D 2А 3В"]:

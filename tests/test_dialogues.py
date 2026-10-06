@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from sqlalchemy import func, select
-from database import DialogueSession, StudyDatabase
-from dialogue_generator import COMMON_PHRASES, parse_answers, prepare_dialogue, validate_dialogue
+from database import DialoguePhrase, DialogueSession, StudyDatabase
+from dialogue_generator import COMMON_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue
 from dialogue_examples import reserve_dialogue
 from dialogue_support import db_action, exercise_text, useful_phrases, callback, text_message, STATE
 from study_memory import StudyMemory
@@ -54,6 +54,11 @@ class ValidationTests(unittest.TestCase):
         self.assertIsNone(reserve_dialogue("Indkøb og returvarer", all_seen))
 
     def test_input_formats_and_rejections(self):
+        raw = example()
+        self.assertEqual(validate_dialogue(raw)["rank"], "C")
+        raw["rank"] = "S"
+        self.assertEqual(validate_dialogue(raw)["rank"], "S")
+        self.assertEqual(RANK_ORDER, ("F", "E", "D", "C", "B", "A", "S"))
         for text in ["1D 2A 3B", "dab", "D, A, B", "1D 2А 3В"]:
             self.assertEqual(parse_answers(text), ["D", "A", "B"])
         for text in ["AAB", "1D 3A 2B", "DAB extra", "AB", "GAB"]:
@@ -133,6 +138,13 @@ class PersistenceTests(unittest.TestCase):
         db_action("one", "answer", index=1, answers=["A"])
         self.assertEqual(db_action("one", "answer", index=2, answers=["B"])["score"], 100)
 
+    def test_ranked_phrase_bank_is_seeded(self):
+        phrases = db_action("one", "phrases", rank="C")
+        self.assertTrue(any(text == "Det er en aftale" for text, _ in phrases))
+        self.assertGreaterEqual(len(phrases), 7)
+        with self.memory.database.session() as session:
+            self.assertGreater(session.scalar(select(func.count()).select_from(DialoguePhrase)), 40)
+
     def test_custom_exercises_errors_and_reset(self):
         item = db_action("one", "create", data=example(), custom=True)
         self.assertEqual(db_action("one", "mine")[0]["id"], item["id"])
@@ -145,6 +157,18 @@ class PersistenceTests(unittest.TestCase):
 
 
 class RoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_topics_open_rank_selector(self):
+        query = SimpleNamespace(data="dialog:topics:exam", answer=AsyncMock())
+        update = SimpleNamespace(callback_query=query)
+        context = SimpleNamespace(user_data={})
+        with patch("telegram_bot._study_user_id", return_value="one"), patch("dialogue_support.db", AsyncMock()), patch("dialogue_support.send", AsyncMock()) as send:
+            with self.assertRaises(ApplicationHandlerStop):
+                await callback(update, context)
+        markup = send.call_args.args[2]
+        callbacks = [b.callback_data for row in markup.inline_keyboard for b in row]
+        self.assertIn("dialog:rank:exam:F", callbacks)
+        self.assertIn("dialog:rank:exam:S", callbacks)
+
     async def test_test_menu_intercepts_old_quiz_start(self):
         query = SimpleNamespace(data="study:section:tests", answer=AsyncMock())
         update = SimpleNamespace(callback_query=query)

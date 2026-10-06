@@ -304,8 +304,9 @@ RESERVES = [
 
 
 def reserve_opgave1(topic, rank="C", recent_titles=()):
-    if rank != "C":
-        return None
+    # Reserve texts are hand-checked at C level. They may be used as a safe
+    # fallback for any requested rank, but remain labelled C to avoid pretending
+    # they are harder/easier than they really are.
     normalized = topic.casefold()
     available = [raw for raw in RESERVES if raw["title"] not in recent_titles]
     if not available:

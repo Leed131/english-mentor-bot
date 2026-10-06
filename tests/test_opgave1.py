@@ -90,13 +90,14 @@ class Opgave1ValidationTests(unittest.TestCase):
         self.assertIsNotNone(
             reserve_opgave1("Arbejde og butik", rank="C", recent_titles=())
         )
-        self.assertIsNone(
-            reserve_opgave1(
-                "Arbejde og butik",
-                rank="C",
-                recent_titles=("En gammel drøm",),
-            )
+        fallback = reserve_opgave1(
+            "Arbejde og butik",
+            rank="B",
+            recent_titles=("En gammel drøm",),
         )
+        self.assertIsNotNone(fallback)
+        self.assertEqual(fallback["rank"], "C")
+        self.assertNotEqual(fallback["title"], "En gammel drøm")
 
     def test_picker_allows_editing_any_gap_before_submit(self):
         data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")

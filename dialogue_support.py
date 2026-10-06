@@ -632,6 +632,7 @@ async def callback(update, context):
         await send(update, "🧪 Test — vælg en type", keyboard([
             [("🧩 Dialoger — læsning", "dialog:menu")],
             [("📖 Opgave 3 — tekst", "opg3:menu")],
+            [("📚 Opgave 4 — personer", "opg4:menu")],
             [("🧪 Kort A1-test", "dialog:a1")],
             [("⬅️ Studiemenu", "study:menu")],
         ]))

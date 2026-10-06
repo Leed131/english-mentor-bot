@@ -17,6 +17,7 @@ from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
 STATE = "dialogue_input"
+EXAM_PICK_KEY = "dialog_exam_picks"
 TOPICS = ["Aftaler og transport", "Indkøb og returvarer", "Naboer og bolig",
           "Arbejde og vagter", "Biograf og invitationer", "Familie og skole"]
 RANK_LABELS = {
@@ -42,6 +43,34 @@ def menu():
         [("🧠 Svage vendinger", "dialog:weak")],
         [("⬅️ Studiemenu", "study:menu")],
     ])
+
+
+def exam_answer_keyboard(item_id, picks=None):
+    """Three answer rows for exam mode; selected letters are unavailable elsewhere."""
+    picks = dict(picks or {})
+    used = {letter for letter in picks.values() if letter in LETTERS}
+    rows = []
+    for index in range(3):
+        selected = picks.get(index)
+        row = []
+        for letter in LETTERS:
+            if letter == selected:
+                label = f"✅{index + 1}{letter}"
+                data = f"dialog:pick:{item_id}:{index}:{letter}"
+            elif letter in used:
+                label = "·"
+                data = "dialog:noop"
+            else:
+                label = f"{index + 1}{letter}"
+                data = f"dialog:pick:{item_id}:{index}:{letter}"
+            row.append((label, data))
+        rows.append(row)
+    if len(picks) == 3:
+        rows.append([("✅ Tjek svar", f"dialog:submit:{item_id}")])
+    else:
+        rows.append([("Vælg 3 svar", "dialog:noop")])
+    rows.append([("⬅️ Dialoger", "dialog:menu")])
+    return keyboard(rows)
 
 
 def rank_menu(mode):
@@ -372,7 +401,7 @@ def exercise_text(item, reveal=False):
     a, b = data["speakers"]
     lines = data["lines"]
     rank = data.get("rank", "C")
-    out = [f"🧩 Dialoger — læsning · Rang {rank}", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]} (eksempel)"]
+    out = [f"🧩 Dialoger — læsning · Rang {rank}", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]}"]
     for i in range(3):
         out.append(f"{a}: {lines[i+2]}")
         answer = data["answers"][i] if reveal else (item["answers"][i] if i < len(item["answers"]) else None)
@@ -380,7 +409,11 @@ def exercise_text(item, reveal=False):
     out.extend([f"{a}: {lines[5]}", "", "Svarmuligheder (tre skal ikke bruges):"])
     out.extend(f"{k}. {v}" for k, v in data["options"].items())
     if not reveal:
-        out.extend(["", "Svar med ét bogstav A–F." if item["mode"] == "practice" else "Skriv tre svar, fx 1F 2D 3B eller FDB."])
+        out.extend([
+            "",
+            "Svar med ét bogstav A–F." if item["mode"] == "practice"
+            else "Vælg tre svar med knapperne nedenfor. Du kan også skrive fx 1F 2D 3B eller FDB.",
+        ])
     return "\n".join(out)
 
 
@@ -397,12 +430,16 @@ async def send(update, text, markup=None):
 
 
 async def show(update, item):
-    rows = []
-    if item["mode"] == "practice":
-        rows.append([(letter, f"dialog:answer:{item['id']}:{len(item['answers'])}:{letter}")
-                     for letter in LETTERS if letter not in item["answers"]])
-    rows.append([("⬅️ Dialoger", "dialog:menu")])
-    await send(update, exercise_text(item), keyboard(rows))
+    if item["mode"] == "exam":
+        markup = exam_answer_keyboard(item["id"], {})
+    else:
+        rows = [[
+            (letter, f"dialog:answer:{item['id']}:{len(item['answers'])}:{letter}")
+            for letter in LETTERS if letter not in item["answers"]
+        ]]
+        rows.append([("⬅️ Dialoger", "dialog:menu")])
+        markup = keyboard(rows)
+    await send(update, exercise_text(item), markup)
 
 
 async def grade(update, user, answers, **kwargs):
@@ -498,6 +535,7 @@ async def command(update, context):
         return
     context.user_data.pop("du3_opgave2_session", None)
     context.user_data.pop(STATE, None)
+    context.user_data.pop(EXAM_PICK_KEY, None)
     await db(user, "pause")
     await send(update, "🧩 Dialoger — læsning\nTre huller, seks svar. Læs replikkerne før og efter hvert hul.", menu())
     raise ApplicationHandlerStop
@@ -530,7 +568,48 @@ async def callback(update, context):
     if action in {"menu", "topics", "rank", "topic", "weak", "weaktrain", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
         context.user_data.pop(STATE, None)
         await db(user, "pause")
+    if action == "noop":
+        raise ApplicationHandlerStop
+    if action == "pick" and len(parts) == 5 and parts[2].isdigit() and parts[3].isdigit():
+        item_id = int(parts[2])
+        index = int(parts[3])
+        letter = parts[4]
+        if index not in {0, 1, 2} or letter not in LETTERS:
+            raise ApplicationHandlerStop
+        item = await db(user, "get", id=item_id)
+        if not item or item["mode"] != "exam" or item["completed"]:
+            await send(update, "Opgaven er ikke aktiv længere.", menu())
+            raise ApplicationHandlerStop
+        all_picks = context.user_data.setdefault(EXAM_PICK_KEY, {})
+        picks = dict(all_picks.get(str(item_id), {}))
+        picks = {int(key): value for key, value in picks.items()}
+        # A letter may only be used once. Choosing it for a new gap moves it.
+        for other_index, other_letter in list(picks.items()):
+            if other_index != index and other_letter == letter:
+                picks.pop(other_index, None)
+        picks[index] = letter
+        all_picks[str(item_id)] = {str(key): value for key, value in picks.items()}
+        try:
+            await query.edit_message_reply_markup(
+                reply_markup=exam_answer_keyboard(item_id, picks)
+            )
+        except Exception:
+            logger.exception("Could not refresh exam answer buttons")
+        raise ApplicationHandlerStop
+    if action == "submit" and len(parts) == 3 and parts[2].isdigit():
+        item_id = int(parts[2])
+        all_picks = context.user_data.get(EXAM_PICK_KEY, {})
+        raw_picks = all_picks.get(str(item_id), {})
+        picks = {int(key): value for key, value in raw_picks.items()}
+        if set(picks) != {0, 1, 2}:
+            await send(update, "Vælg først ét svar til hver af de tre pladser.")
+            raise ApplicationHandlerStop
+        answers = [picks[index] for index in range(3)]
+        await grade(update, user, answers, id=item_id)
+        all_picks.pop(str(item_id), None)
+        raise ApplicationHandlerStop
     if action == "menu":
+        context.user_data.pop(EXAM_PICK_KEY, None)
         await send(update, "🧩 Dialoger — læsning", menu())
     elif action == "weak":
         weak = await db(user, "weak")
@@ -670,6 +749,7 @@ async def text_message(update, context):
     if text.lower() in telegram_bot.MENU_ALIASES | telegram_bot.DU3_OPGAVE2_ALIASES:
         context.user_data.pop(STATE, None)
         context.user_data.pop("du3_opgave2_session", None)
+        context.user_data.pop(EXAM_PICK_KEY, None)
         await db(user, "pause")
         return
     state = context.user_data.get(STATE, {})
@@ -730,6 +810,7 @@ async def leave_on_command(update, context):
     user = telegram_bot._study_user_id(update)
     if user:
         context.user_data.pop(STATE, None)
+        context.user_data.pop(EXAM_PICK_KEY, None)
         await db(user, "pause")
 
 

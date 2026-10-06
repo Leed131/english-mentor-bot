@@ -179,14 +179,32 @@ def validate_word_gap(raw, rank="C"):
         "conjunction", "adverb", "negation", "verb",
         "pronoun", "preposition", "noun", "adjective",
     }
+    type_aliases = {
+        "connector": "conjunction",
+        "linker": "conjunction",
+        "konjunktion": "conjunction",
+        "adverbium": "adverb",
+        "particle": "adverb",
+        "auxiliary": "verb",
+        "auxiliary verb": "verb",
+        "modal": "verb",
+        "modal verb": "verb",
+        "substantiv": "noun",
+        "noun phrase": "noun",
+        "adjektiv": "adjective",
+        "pronom": "pronoun",
+        "determiner": "pronoun",
+        "preposition phrase": "preposition",
+    }
     normalized_type_keys = {key.casefold(): value for key, value in word_types.items()}
     if set(normalized_type_keys) != set(normalized_bank):
         raise ValueError("Тип должен быть указан для каждого слова из банка.")
     clean_types = {}
     for word in word_bank:
-        value = normalized_type_keys[word.casefold()]
+        raw_value = str(normalized_type_keys[word.casefold()]).strip().casefold()
+        value = type_aliases.get(raw_value, raw_value)
         if value not in allowed_types:
-            raise ValueError("Неизвестный тип слова.")
+            raise ValueError("Неизвестный тип слова: " + raw_value)
         clean_types[word] = value
 
     answers = raw.get("answers")

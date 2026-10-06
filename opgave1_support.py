@@ -463,6 +463,13 @@ def picker_text(item, picks):
     return " ".join(pieces).replace(" \n", "\n").replace("\n ", "\n")
 
 
+def answer_keyboard(item):
+    """Compatibility wrapper for older tests/messages."""
+    picks = {index: word for index, word in enumerate(item.get("answers", []))}
+    target = len(picks) if len(picks) < 6 else None
+    return picker_keyboard(item, picks, target)
+
+
 def picker_keyboard(item, picks=None, target=None):
     picks = dict(picks or {})
     rows = []

@@ -1,4 +1,8 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, patch
+
+from telegram.ext import ApplicationHandlerStop
 
 from du3_opgave2_support import (
     TOPICS,
@@ -6,6 +10,7 @@ from du3_opgave2_support import (
     _individual_turn_text,
     _new_session,
     _pair_turn_text,
+    du3_text_message,
 )
 
 
@@ -56,6 +61,23 @@ class Du3Opgave2Tests(unittest.TestCase):
         self.assertIn("Evaluate only this answer", prompt)
         self.assertIn("Do not answer the question yourself", prompt)
         self.assertIn("do not ask any new question", prompt)
+
+
+class Du3Opgave2RoutingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_menu_text_exits_active_speaking_session(self):
+        update = SimpleNamespace(
+            effective_message=SimpleNamespace(text="Menu"),
+        )
+        context = SimpleNamespace(
+            user_data={
+                "du3_opgave2_session": _new_session("gron"),
+            }
+        )
+        with patch("telegram_bot._show_learn_menu", AsyncMock()) as show_menu:
+            with self.assertRaises(ApplicationHandlerStop):
+                await du3_text_message(update, context)
+        self.assertNotIn("du3_opgave2_session", context.user_data)
+        show_menu.assert_awaited_once_with(update)
 
 
 if __name__ == "__main__":

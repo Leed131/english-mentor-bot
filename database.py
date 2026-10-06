@@ -90,6 +90,9 @@ class LearnerProfile(Base):
     dialogues: Mapped[list["DialogueSession"]] = relationship(
         back_populates="profile", cascade="all, delete-orphan",
     )
+    phrase_progress: Mapped[list["DialoguePhraseProgress"]] = relationship(
+        back_populates="profile", cascade="all, delete-orphan",
+    )
     quizzes: Mapped[list["QuizSession"]] = relationship(
         back_populates="profile",
         cascade="all, delete-orphan",
@@ -370,6 +373,8 @@ class DialoguePhraseProgress(Base):
     next_review: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True
     )
+
+    profile: Mapped[LearnerProfile] = relationship(back_populates="phrase_progress")
 
 
 class VerbReviewAttempt(Base):

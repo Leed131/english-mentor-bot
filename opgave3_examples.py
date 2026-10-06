@@ -122,6 +122,8 @@ ADRIAN = {
 
 
 def reserve_opgave3(topic, rank="C", recent_titles=()):
+    if rank != "C":
+        return None
     normalized = topic.casefold()
     if (
         "sundhed" not in normalized

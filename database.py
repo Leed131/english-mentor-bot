@@ -324,6 +324,23 @@ class DialogueSession(Base):
     profile: Mapped[LearnerProfile] = relationship(back_populates="dialogues")
 
 
+class DialoguePhrase(Base):
+    __tablename__ = "dialogue_phrases"
+    __table_args__ = (
+        UniqueConstraint("phrase", name="uq_dialogue_phrase"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    phrase: Mapped[str] = mapped_column(String(160), nullable=False)
+    translation_ru: Mapped[str] = mapped_column(String(240), nullable=False)
+    rank: Mapped[str] = mapped_column(String(1), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(48), nullable=False, default="hverdag")
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=utc_now
+    )
+
+
 class VerbReviewAttempt(Base):
     __tablename__ = "verb_review_attempts"
 

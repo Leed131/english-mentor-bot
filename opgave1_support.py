@@ -487,20 +487,13 @@ async def generate(update, user, topic, mode, rank):
         logger.exception("Opgave 1 generation failed")
         from opgave1_examples import reserve_opgave1
         data = reserve_opgave1(topic, rank=rank, recent_titles=recent_titles)
-        if data is None and rank == "C":
+        if data is None:
             from opgave1_examples import EN_GAMMEL_DROEM
             data = validate_word_gap(EN_GAMMEL_DROEM, rank="C")
             await send(
                 update,
-                "Den nye opgave kunne ikke kontrolleres, så du får et gennemgået C-eksempel i stedet.",
+                "Den nye opgave kunne ikke kontrolleres, så du får et gennemgået C-eksempel i stedet. Du kan stadig træne formatet nu.",
             )
-        elif data is None:
-            await send(
-                update,
-                "Jeg kunne ikke lave en entydig Opgave 1 lige nu. Prøv rang C eller et andet emne.",
-                menu(),
-            )
-            return
         else:
             await send(update, "Her er en gennemgået opgave af samme type.")
 

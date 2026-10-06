@@ -58,10 +58,10 @@ EN_GAMMEL_DROEM = {
         "«have sin egen butik» = иметь свой собственный магазин. Поэтому butik.",
     ],
     "focus": [
-        {"phrase": "fordi", "translation_ru": "потому что", "category": "forbinder"},
+        {"phrase": "fordi", "translation_ru": "потому что", "category": "ledsætningskonjunktion"},
         {"phrase": "også", "translation_ru": "тоже / также", "category": "adverbium"},
-        {"phrase": "men", "translation_ru": "но", "category": "forbinder"},
-        {"phrase": "ikke", "translation_ru": "не", "category": "negation"},
+        {"phrase": "men", "translation_ru": "но", "category": "hovedsætningskonjunktion"},
+        {"phrase": "ikke", "translation_ru": "не", "category": "adverbium/negation"},
         {"phrase": "har travlt med at", "translation_ru": "быть занятым тем, что…", "category": "mønster"},
         {"phrase": "sin egen butik", "translation_ru": "свой собственный магазин", "category": "mønster"},
     ],

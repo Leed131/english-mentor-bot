@@ -41,6 +41,17 @@ class ValidationTests(unittest.TestCase):
         self.assertIn("Hvor skal jeg", phrase_map)
         self.assertIn("Vi ses i morgen", phrase_map)
 
+    def test_useful_phrases_prefers_meaningful_chunks(self):
+        raw = example()
+        raw["lines"][0] = "Hej. Det passer mig fint."
+        raw["lines"][1] = "Ja tak, det må du meget gerne."
+        phrases = dict(useful_phrases(raw))
+        self.assertIn("Det passer mig fint", phrases)
+        self.assertIn("Det må du meget gerne", phrases)
+        self.assertNotIn("Hej", phrases)
+        self.assertNotIn("Tak", phrases)
+        self.assertNotIn("Ja tak", phrases)
+
     def test_reserve_never_repeats_recent_situation(self):
         first = reserve_dialogue("Indkøb og returvarer", ())
         self.assertIsNotNone(first)

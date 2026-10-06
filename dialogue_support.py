@@ -630,7 +630,8 @@ async def callback(update, context):
         await query.answer()
         context.user_data.pop("du3_opgave2_session", None)
         await send(update, "🧪 Test — vælg en type", keyboard([
-            [("🧩 Dialoger — læsning", "dialog:menu")],
+            [("📝 Opgave 1 — ord", "opg1:menu")],
+            [("🧩 Opgave 2 — dialoger", "dialog:menu")],
             [("📖 Opgave 3 — tekst", "opg3:menu")],
             [("📚 Opgave 4 — personer", "opg4:menu")],
             [("🧪 Kort A1-test", "dialog:a1")],

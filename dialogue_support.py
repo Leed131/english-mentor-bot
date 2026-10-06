@@ -10,14 +10,23 @@ from telegram import InlineKeyboardButton as Button, InlineKeyboardMarkup as Mar
 from telegram.ext import (ApplicationHandlerStop, CallbackQueryHandler, CommandHandler,
                           MessageHandler, filters)
 
-from database import DialogueSession
-from dialogue_generator import COMMON_PHRASES, LETTERS, parse_answers, prepare_dialogue, validate_dialogue
+from database import DialoguePhrase, DialogueSession
+from dialogue_generator import (COMMON_PHRASES, LETTERS, RANKED_PHRASES, RANK_ORDER, parse_answers, prepare_dialogue, validate_dialogue)
 from study_memory import get_study_memory
 
 logger = logging.getLogger(__name__)
 STATE = "dialogue_input"
 TOPICS = ["Aftaler og transport", "Indkøb og returvarer", "Naboer og bolig",
           "Arbejde og vagter", "Biograf og invitationer", "Familie og skole"]
+RANK_LABELS = {
+    "F": "Meget let",
+    "E": "Let",
+    "D": "Let+",
+    "C": "DU3 Modul 3",
+    "B": "Svær",
+    "A": "Meget svær",
+    "S": "Super svær",
+}
 
 
 def keyboard(rows):
@@ -33,6 +42,43 @@ def menu():
     ])
 
 
+def rank_menu(mode):
+    return keyboard([
+        [(f"F · {RANK_LABELS['F']}", f"dialog:rank:{mode}:F"),
+         (f"E · {RANK_LABELS['E']}", f"dialog:rank:{mode}:E")],
+        [(f"D · {RANK_LABELS['D']}", f"dialog:rank:{mode}:D"),
+         (f"C · {RANK_LABELS['C']}", f"dialog:rank:{mode}:C")],
+        [(f"B · {RANK_LABELS['B']}", f"dialog:rank:{mode}:B"),
+         (f"A · {RANK_LABELS['A']}", f"dialog:rank:{mode}:A")],
+        [(f"S · {RANK_LABELS['S']}", f"dialog:rank:{mode}:S")],
+        [("⬅️ Dialoger", "dialog:menu")],
+    ])
+
+
+def topic_menu(mode, rank):
+    return keyboard(
+        [[(topic, f"dialog:new:{mode}:{rank}:{i}")] for i, topic in enumerate(TOPICS)] +
+        [[("✍️ Eget emne", f"dialog:topic:{mode}:{rank}")],
+         [("⬅️ Rang", f"dialog:topics:{mode}")]]
+    )
+
+
+def _seed_phrase_bank(session):
+    rows = {row.phrase: row for row in session.scalars(select(DialoguePhrase)).all()}
+    for rank, phrase, translation, category in RANKED_PHRASES:
+        row = rows.get(phrase)
+        if row is None:
+            session.add(DialoguePhrase(
+                phrase=phrase, translation_ru=translation, rank=rank,
+                category=category, active=True,
+            ))
+        else:
+            row.translation_ru = translation
+            row.rank = rank
+            row.category = category
+            row.active = True
+
+
 def snapshot(row):
     return dict(id=row.id, data=json.loads(row.data_json), answers=json.loads(row.answers_json),
                 mode=row.mode, custom=row.custom, completed=row.completed, score=row.score)
@@ -43,6 +89,18 @@ def db_action(user_id, action, **args):
     with memory.database.session() as session:
         profile = memory._profile(session, "telegram", user_id)
         query = select(DialogueSession).where(DialogueSession.profile_id == profile.id)
+        if action == "phrases":
+            rank = args.get("rank", "C")
+            if rank not in RANK_ORDER:
+                raise ValueError("Ukendt dialograng.")
+            _seed_phrase_bank(session)
+            rows = session.scalars(
+                select(DialoguePhrase).where(
+                    DialoguePhrase.rank == rank,
+                    DialoguePhrase.active.is_(True),
+                ).order_by(DialoguePhrase.id)
+            ).all()
+            return [(row.phrase, row.translation_ru) for row in rows]
         if action in {"recent", "mine", "review"}:
             if action == "mine":
                 query = query.where(DialogueSession.custom.is_(True))
@@ -129,7 +187,8 @@ def exercise_text(item, reveal=False):
     data = item["data"]
     a, b = data["speakers"]
     lines = data["lines"]
-    out = ["🧩 Dialoger — læsning", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]} (eksempel)"]
+    rank = data.get("rank", "C")
+    out = [f"🧩 Dialoger — læsning · Rang {rank}", data["situation"], "", f"{a}: {lines[0]}", f"{b}: {lines[1]} (eksempel)"]
     for i in range(3):
         out.append(f"{a}: {lines[i+2]}")
         answer = data["answers"][i] if reveal else (item["answers"][i] if i < len(item["answers"]) else None)
@@ -191,12 +250,16 @@ async def grade(update, user, answers, **kwargs):
         await show(update, item)
 
 
-async def generate(update, user, topic, mode):
+async def generate(update, user, topic, mode, rank="C"):
     await send(update, "Jeg laver og tjekker en ny dialog…")
     recent = await db(user, "recent")
     situations = [r["data"]["situation"] for r in recent]
+    phrase_bank = await db(user, "phrases", rank=rank)
     try:
-        data = await asyncio.wait_for(prepare_dialogue(topic, situations), timeout=60)
+        data = await asyncio.wait_for(
+            prepare_dialogue(topic, situations, rank=rank, phrase_bank=phrase_bank),
+            timeout=60,
+        )
     except Exception:
         logger.exception("Dialogue generation failed")
         from dialogue_examples import reserve_dialogue
@@ -207,7 +270,9 @@ async def generate(update, user, topic, mode):
         notice = "Den nye dialog kunne ikke kontrolleres. Her er en gennemgået øvelse om samme emne."
         if data["situation"] in situations:
             notice += " Du har set den før; du kan bruge den til repetition."
+        data["rank"] = rank
         await send(update, notice)
+    data["rank"] = rank
     try:
         item = await db(user, "create", data=data, mode=mode)
     except Exception:
@@ -268,7 +333,7 @@ async def callback(update, context):
     context.user_data.pop("du3_opgave2_session", None)
     parts = data.split(":")
     action = parts[1]
-    if action in {"menu", "topics", "topic", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
+    if action in {"menu", "topics", "rank", "topic", "add", "mine", "review", "a1", "new", "more", "retry", "resume"}:
         context.user_data.pop(STATE, None)
         await db(user, "pause")
     if action == "menu":
@@ -279,15 +344,32 @@ async def callback(update, context):
         mode = parts[2]
         if mode not in {"exam", "practice"}:
             raise ApplicationHandlerStop
-        await send(update, "Vælg en hverdagssituation:", keyboard(
-            [[(topic, f"dialog:new:{mode}:{i}")] for i, topic in enumerate(TOPICS)] +
-            [[("✍️ Eget emne", f"dialog:topic:{mode}")], [("⬅️ Dialoger", "dialog:menu")]]))
+        await send(
+            update,
+            "Vælg rang. F er lettest, S er sværest. C svarer cirka til DU3 Modul 3.",
+            rank_menu(mode),
+        )
+    elif action == "rank":
+        mode, rank = parts[2], parts[3]
+        if mode not in {"exam", "practice"} or rank not in RANK_ORDER:
+            raise ApplicationHandlerStop
+        await send(
+            update,
+            f"Rang {rank} · {RANK_LABELS[rank]}\nVælg en hverdagssituation:",
+            topic_menu(mode, rank),
+        )
     elif action == "topic":
-        context.user_data[STATE] = {"topic_mode": parts[2]}
-        await send(update, "Skriv et emne, fx at komme for sent på arbejde.", menu())
+        mode = parts[2]
+        rank = parts[3] if len(parts) > 3 and parts[3] in RANK_ORDER else "C"
+        context.user_data[STATE] = {"topic_mode": mode, "topic_rank": rank}
+        await send(update, f"Rang {rank}. Skriv et emne, fx at komme for sent på arbejde.", menu())
     elif action == "new":
-        if parts[2] in {"exam", "practice"} and parts[3].isdigit() and int(parts[3]) < len(TOPICS):
-            await generate(update, user, TOPICS[int(parts[3])], parts[2])
+        if len(parts) >= 5:
+            mode, rank, index_text = parts[2], parts[3], parts[4]
+        else:
+            mode, rank, index_text = parts[2], "C", parts[3]
+        if mode in {"exam", "practice"} and rank in RANK_ORDER and index_text.isdigit() and int(index_text) < len(TOPICS):
+            await generate(update, user, TOPICS[int(index_text)], mode, rank)
     elif action == "add":
         context.user_data[STATE] = {"import": True}
         await send(update, "Send tekst eller et foto med hele dialogen, tre huller og svarmulighederne A–F. "
@@ -316,7 +398,10 @@ async def callback(update, context):
         if not item:
             await send(update, "Opgaven er ikke tilgængelig.", menu())
         elif action == "more":
-            await generate(update, user, item["data"]["topic"], item["mode"])
+            await generate(
+                update, user, item["data"]["topic"], item["mode"],
+                item["data"].get("rank", "C"),
+            )
         else:
             await show(update, await db(user, "create", data=item["data"], mode=item["mode"]))
     elif action == "answer" and len(parts) == 5 and parts[2].isdigit() and parts[3].isdigit():
@@ -341,7 +426,9 @@ async def text_message(update, context):
             await send(update, "Skriv et emne på højst 160 tegn.")
         else:
             context.user_data.pop(STATE, None)
-            await generate(update, user, text, state["topic_mode"])
+            await generate(
+                update, user, text, state["topic_mode"], state.get("topic_rank", "C")
+            )
     elif state.get("import") or state.get("draft"):
         if len(text) > 10000:
             await send(update, "Send én opgave på højst 10.000 tegn.")

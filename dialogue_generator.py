@@ -133,9 +133,13 @@ def validate_dialogue(raw):
     answers = texts("answers", 3, 1)
     if len(set(answers)) != 3 or any(a not in LETTERS for a in answers):
         raise ValueError("Нужны три разные правильные буквы A–F.")
+    rank = raw.get("rank", "C")
+    if rank not in RANK_ORDER:
+        raise ValueError("Ukendt dialograng.")
     return dict(topic=text(raw.get("topic"), 100), situation=text(raw.get("situation"), 240),
                 speakers=texts("speakers", 2, 30), lines=texts("lines", 6, 240),
-                options=options, answers=answers, explanations=texts("explanations", 3, 650))
+                options=options, answers=answers, explanations=texts("explanations", 3, 650),
+                rank=rank)
 
 
 def parse_answers(value):

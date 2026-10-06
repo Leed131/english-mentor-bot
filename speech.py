@@ -1,6 +1,7 @@
 import asyncio
 import os
 import tempfile
+import wave
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -73,14 +74,26 @@ async def transcribe_audio(url: str, language: str | None = None) -> str:
             os.remove(temp_path)
 
 
-async def generate_speech(text: str) -> str:
-    speech_response = await _get_client().audio.speech.create(
-        model="tts-1-hd",
-        voice="alloy",
-        input=text,
-    )
+async def generate_speech(
+    text: str,
+    *,
+    voice: str = "alloy",
+    instructions: str | None = None,
+    response_format: str = "mp3",
+) -> str:
+    request = {
+        "model": "gpt-4o-mini-tts",
+        "voice": voice,
+        "input": text,
+        "response_format": response_format,
+    }
+    if instructions:
+        request["instructions"] = instructions
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".mp3") as temp_file:
+    speech_response = await _get_client().audio.speech.create(**request)
+
+    suffix = "." + response_format.lower().lstrip(".")
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
         temp_path = temp_file.name
 
     # This small local write cannot outlive the SDK response object.
@@ -88,3 +101,75 @@ async def generate_speech(text: str) -> str:
         output_file.write(speech_response.content)
 
     return temp_path
+
+
+def _merge_wav_files(paths: list[str], pause_ms: int = 250) -> str:
+    if not paths:
+        raise ValueError("No audio files to merge")
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as output:
+        output_path = output.name
+
+    reference = None
+    with wave.open(output_path, "wb") as writer:
+        for index, path in enumerate(paths):
+            with wave.open(path, "rb") as reader:
+                params = (
+                    reader.getnchannels(),
+                    reader.getsampwidth(),
+                    reader.getframerate(),
+                    reader.getcomptype(),
+                )
+                if reference is None:
+                    reference = params
+                    writer.setnchannels(params[0])
+                    writer.setsampwidth(params[1])
+                    writer.setframerate(params[2])
+                    writer.setcomptype(params[3], reader.getcompname())
+                elif params != reference:
+                    raise RuntimeError("Dialogue TTS returned incompatible WAV formats")
+
+                writer.writeframes(reader.readframes(reader.getnframes()))
+
+                if index < len(paths) - 1 and pause_ms > 0:
+                    frame_count = round(params[2] * pause_ms / 1000)
+                    silence = b"\x00" * frame_count * params[0] * params[1]
+                    writer.writeframes(silence)
+
+    return output_path
+
+
+async def generate_dialogue_speech(
+    turns: list[tuple[int, str]],
+    *,
+    voices: tuple[str, str] = ("marin", "cedar"),
+) -> str:
+    """Generate a two-speaker learner-friendly Danish dialogue as one WAV file."""
+    if not turns:
+        raise ValueError("Dialogue has no turns")
+
+    instruction = (
+        "Speak only the supplied Danish text. Use clear, natural Danish pronunciation "
+        "at a calm learner-friendly pace. Do not translate, explain, add speaker names, "
+        "or add any words."
+    )
+    tasks = [
+        generate_speech(
+            text,
+            voice=voices[speaker_index % len(voices)],
+            instructions=instruction,
+            response_format="wav",
+        )
+        for speaker_index, text in turns
+    ]
+    paths = await asyncio.gather(*tasks)
+
+    try:
+        return _merge_wav_files(paths)
+    finally:
+        for path in paths:
+            if path and os.path.exists(path):
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass

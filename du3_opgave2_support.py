@@ -365,11 +365,24 @@ async def du3_text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     if _get_session(context) is None:
         return
 
+    import telegram_bot
+
     message = update.effective_message
     if message is None or not message.text:
         return
 
-    await _handle_transcript(update, context, message.text.strip())
+    text = message.text.strip()
+    shortcut = " ".join(text.lower().split())
+    if shortcut in telegram_bot.MENU_ALIASES:
+        context.user_data.pop(SESSION_KEY, None)
+        await telegram_bot._show_learn_menu(update)
+        raise ApplicationHandlerStop
+    if shortcut in telegram_bot.DU3_OPGAVE2_ALIASES:
+        context.user_data.pop(SESSION_KEY, None)
+        await telegram_bot._show_du3_opgave2_menu(update)
+        raise ApplicationHandlerStop
+
+    await _handle_transcript(update, context, text)
     raise ApplicationHandlerStop
 
 

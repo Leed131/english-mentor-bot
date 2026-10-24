@@ -1,5 +1,19 @@
 # English and Danish Mentor Bots
 
+AI language tutors I built while learning Danish myself: an English mentor on Discord and a Danish mentor on Telegram, with exercises modelled on the Danish language course exams (DU3). Instead of a chatbot that forgets everything, the Danish mentor keeps a study memory, tracks real progress and repeats what you get wrong.
+
+**What makes it more than a chatbot**
+
+- **Study memory in PostgreSQL** — profiles, progress per section, recurring mistakes, verb reviews and quizzes are stored per user and platform; progress is counted only after a task is actually completed.
+- **Spaced repetition** for Danish verbs (1 → 3 → 7 → 14 → 30 days), with idempotent answers so a double tap cannot inflate progress.
+- **Guarded AI generation** — generated exam-style exercises are validated against a schema, solved independently by a second model call without seeing the answer key, repaired up to two times, and replaced by hand-reviewed reserve tasks if generation fails. Answers are graded locally against the saved key, not by the model.
+- **Multimodal input** — voice messages (speech-to-text), photos of exercises (vision) and text.
+- **Tested and deployed** — 93 automated tests; runs as a single background worker on Render with PostgreSQL.
+
+**Stack:** Python · OpenAI API · SQLAlchemy · PostgreSQL · discord.py · python-telegram-bot · pydub/ffmpeg · Render
+
+---
+
 One Python process runs two language-learning bots concurrently:
 
 - Discord bot — English mentor with chat, exercises, grammar correction,
